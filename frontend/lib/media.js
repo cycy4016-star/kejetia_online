@@ -71,6 +71,33 @@ export async function readMockImages(fileList) {
   return out.filter(Boolean)
 }
 
+// Upload one landmark / store-front photo.
+// Mock mode: returns the data URL (no network).
+// Real mode: returns the public Storage URL, or null on failure.
+export async function uploadLandmarkPhoto(file, ownerKey = 'landmark') {
+  const sb = getSupabase()
+  if (!sb) return null
+  if (typeof file === 'string') return file
+
+  if (inMockMode()) {
+    return file && file.size <= MAX_SOURCE_BYTES ? readAsDataUrl(file) : null
+  }
+
+  const blob = await compressImage(file)
+  if (!blob) return null
+  const path = `${ownerKey}/${Date.now()}.jpg`
+  const { error } = await sb.storage.from('landmark-photos').upload(path, blob, {
+    contentType: 'image/jpeg',
+    upsert: false,
+  })
+  if (error) {
+    console.error('Landmark photo upload failed:', error.message)
+    return null
+  }
+  const { data } = sb.storage.from('landmark-photos').getPublicUrl(path)
+  return data?.publicUrl || null
+}
+
 // Upload up to 3 photos for a store's product.
 // Mock mode: returns the data URLs (no network).
 // Real mode: returns public Storage URLs; failed uploads are dropped.

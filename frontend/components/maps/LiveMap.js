@@ -114,8 +114,34 @@ function MapError({ message, onRetry }) {
   )
 }
 
+// Rich popup for a user-added photo landmark.
+function landmarkCard(l) {
+  const esc = (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  const photo = l.photo_url
+    ? `<img src="${l.photo_url}" alt="${esc(l.name)}" style="width:100%;height:132px;object-fit:cover;border-radius:10px;display:block;background:#eef2f7" onerror="this.style.display='none'" />`
+    : `<div style="height:132px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff7e0,#fbbf24);border-radius:10px;font-size:34px">🏪</div>`
+  const storeLink = l.store_id
+    ? `<a href="/store/${l.store_id}" style="display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:#0d7c3e;text-decoration:none">${esc(l.store_name || 'View related store')} →</a>`
+    : '<span style="font-size:11px;color:#9aa3b2">Landmark</span>'
+  return `<div style="min-width:220px;max-width:270px">
+    ${photo}
+    <div style="margin-top:10px;font-weight:800;font-size:15px;color:#0f172a">${esc(l.name)}</div>
+    ${l.notes ? `<p style="margin:5px 0 0;color:#5f6368;font-size:12.5px;line-height:1.5">${esc(l.notes)}</p>` : ''}
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+      ${storeLink}
+      <a href="https://www.google.com/maps/dir/?api=1&destination=${Number(l.latitude)},${Number(l.longitude)}" target="_blank" rel="noreferrer" style="margin-left:auto;padding:6px 12px;background:#1a73e8;color:#fff;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Directions</a>
+    </div>
+  </div>`
+}
+
 export default function LiveMap({
   stores = [],
+  landmarks = [],
   userLocations = [],
   onStoreClick,
   onLocationPick,
@@ -137,6 +163,7 @@ export default function LiveMap({
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
   const markerByIdRef = useRef({})
+  const landmarkPhotoByIdRef = useRef({})
   const landmarkMarkersRef = useRef([])
   const kejetiaMarkerRef = useRef(null)
   const userMarkerRef = useRef(null)
@@ -657,9 +684,12 @@ export default function LiveMap({
     })
   }, [activeBase])
 
-  // ── Smart visibility: landmarks show/hide based on zoom ──
+  // ── Smart visibility: landmarks (KML dots + user photo pins) show/hide by zoom ──
   useEffect(() => {
     landmarkMarkersRef.current.forEach((m) => {
+      m.setOpacity(currentZoom >= ZOOM_LANDMARKS ? 1 : 0)
+    })
+    Object.values(landmarkPhotoByIdRef.current).forEach((m) => {
       m.setOpacity(currentZoom >= ZOOM_LANDMARKS ? 1 : 0)
     })
   }, [currentZoom])
@@ -781,6 +811,55 @@ export default function LiveMap({
       markersRef.current = markersRef.current.filter((x) => x !== m)
     })
   }, [stores, mapReady])
+
+  // ── User photo-landmark pins (store fronts, spots) ──
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    const L = leafletRef.current
+    if (!map || !L || !mapReady) return
+
+    const seen = new Set()
+    ;(Array.isArray(landmarks) ? landmarks : []).forEach((l) => {
+      const lat = Number(l.latitude)
+      const lng = Number(l.longitude)
+      if (!lat || !lng) return
+      seen.add(l.id)
+
+      const existing = landmarkPhotoByIdRef.current[l.id]
+      if (existing) {
+        existing.setLatLng([lat, lng])
+        return
+      }
+
+      const bg = l.photo_url ? `url('${l.photo_url}')` : 'linear-gradient(135deg,#f59e0b,#ea580c)'
+      const icon = L.divIcon({
+        className: 'lm-photo-pin',
+        html: `<div class="lm-photo-frame" style="background-image:${bg}"></div><div class="lm-photo-tip"></div>`,
+        iconSize: [40, 45],
+        iconAnchor: [20, 44],
+        popupAnchor: [0, -40],
+      })
+
+      const marker = L.marker([lat, lng], { icon, title: l.name, zIndexOffset: 300 })
+        .addTo(map)
+        .bindTooltip(l.name, {
+          direction: 'top',
+          offset: [0, -14],
+          opacity: 0.9,
+          className: 'lm-landmark-tip',
+        })
+        .bindPopup(landmarkCard(l), { maxWidth: 300, autoPanPadding: [40, 40] })
+      landmarkPhotoByIdRef.current[l.id] = marker
+      marker.setOpacity(currentZoom >= ZOOM_LANDMARKS ? 1 : 0)
+    })
+
+    Object.keys(landmarkPhotoByIdRef.current).forEach((id) => {
+      if (seen.has(id)) return
+      const m = landmarkPhotoByIdRef.current[id]
+      map.removeLayer(m)
+      delete landmarkPhotoByIdRef.current[id]
+    })
+  }, [landmarks, mapReady])
 
   // Highlight + open the selected store.
   useEffect(() => {

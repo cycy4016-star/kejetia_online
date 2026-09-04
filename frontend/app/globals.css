@@ -460,6 +460,37 @@ a {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* User photo-landmark pins — round store-front thumbnails */
+.lm-photo-pin {
+  filter: drop-shadow(0 3px 5px rgba(15, 23, 42, 0.45));
+  transition: transform 0.15s ease;
+}
+
+.lm-photo-pin:hover {
+  transform: scale(1.12);
+}
+
+.lm-photo-pin .lm-photo-frame {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: #f59e0b;
+  background-size: cover;
+  background-position: center;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.lm-photo-pin .lm-photo-tip {
+  width: 0;
+  height: 0;
+  margin: -1px auto 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #fff;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+}
+
 .lm-selected-pin .lm-selected-body {
   width: 28px;
   height: 28px;

@@ -35,6 +35,7 @@ In Supabase, open **SQL Editor → New query** and run these files
 | 2 | `supabase-migrations/add-products-stock.sql` | `products.stock` inventory column |
 | 3 | `supabase-migrations/add-store-reviews.sql` | `products.old_price`, `reviews` table, rating-recompute trigger, reviews RLS |
 | 4 | `supabase-migrations/add-rls-hardening.sql` | Row Level Security on every table + the public `product-images` Storage bucket |
+| 5 | `supabase-migrations/add-landmarks.sql` | `landmarks` table (photo pins), its RLS, and the public `landmark-photos` Storage bucket |
 
 Each should finish with a green success banner. If one errors, stop and
 report it — the next migration depends on the previous one.

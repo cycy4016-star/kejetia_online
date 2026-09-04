@@ -6,6 +6,7 @@ import { getSupabase } from '@/lib/supabase'
 import { useAuth } from '@/context/auth-context'
 import Header from '@/components/Header'
 import LiveMap from '@/components/maps/LiveMap'
+import AddLandmarkModal from '@/components/AddLandmarkModal'
 import { MARKET_CATEGORIES } from '@/lib/categories'
 import { PRODUCT_SORTS, sortProducts, stockLabel, isOutOfStock, discountPct } from '@/lib/products'
 import { Icon, iconNameFor } from '@/components/icons'
@@ -30,6 +31,9 @@ function SearchContent() {
   const [stores, setStores] = useState([])
   const [products, setProducts] = useState([])
   const [selectedStore, setSelectedStore] = useState(null)
+  const [allLandmarks, setAllLandmarks] = useState([])
+  const [landmarkMode, setLandmarkMode] = useState(false)
+  const [showCapture, setShowCapture] = useState(false)
   const [view, setView] = useState('grid')
   const [loading, setLoading] = useState(false)
   const [catFilter, setCatFilter] = useState('')
@@ -80,16 +84,37 @@ function SearchContent() {
     const run = async () => {
       const sb = getSupabase()
       if (!sb) { setLoading(false); return }
-      const [{ data: storeRows }, { data: productRows }] = await Promise.all([
+      const [{ data: storeRows }, { data: productRows }, { data: landmarkRows }] = await Promise.all([
         sb.from('stores').select('*').eq('is_active', true).order('created_at', { ascending: false }),
         sb.from('products').select('*').eq('is_available', true),
+        sb.from('landmarks').select('*').order('created_at', { ascending: false }),
       ])
       setAllStores(storeRows || [])
       setAllProducts(productRows || [])
+      setLandmarksWithStores(storeRows || [], landmarkRows || [])
       setLoading(false)
     }
     run()
   }, [searchParams])
+
+  const setLandmarksWithStores = (storeRows, landmarkRows) => {
+    const storeById = Object.fromEntries((storeRows || []).map((s) => [s.id, s]))
+    setAllLandmarks(
+      (landmarkRows || []).map((lm) => ({
+        ...lm,
+        store_name: lm.store_id ? storeById[lm.store_id]?.name || '' : '',
+      }))
+    )
+  }
+
+  // Re-fetch landmarks after a new one is published.
+  const refreshLandmarks = async () => {
+    const sb = getSupabase()
+    if (!sb) return
+    const { data: rows } = await sb.from('landmarks').select('*').order('created_at', { ascending: false })
+    setLandmarksWithStores(allStores, rows || [])
+    setShowCapture(false)
+  }
 
   // Re-apply text + category filters whenever the query, chips or raw data change.
   useEffect(() => {
@@ -295,43 +320,98 @@ function SearchContent() {
         {view === 'map' && !loading && (
           <div className="ko-map-layout">
             <div className="ko-map-list" style={styles.mapList}>
-              <h3 style={styles.mapListTitle}>{stores.length} store{stores.length === 1 ? '' : 's'} on the map</h3>
-              {stores.length === 0 && (
-                <p style={styles.mapListEmpty}>
-                  No stores on the map yet — explore the market below. Sellers appear here when they join.
-                </p>
-              )}
-              {stores.map((store) => (
-                <div
-                  key={store.id}
-                  style={{ ...styles.mapStore, ...(selectedStore?.id === store.id ? styles.mapStoreActive : {}) }}
-                  onClick={() => setSelectedStore(store)}
-                >
-                  <span style={styles.mapStoreAvatar}>{store.name.charAt(0)}</span>
-                  <div style={styles.mapStoreInfo}>
-                    <strong style={styles.mapStoreName}>{store.name}</strong>
-                    <span style={styles.mapStoreLoc}>{String(store.address || '').split(',')[0]}</span>
-                    {store.rating ? (
-                      <span style={styles.mapStoreRating}>
-                        <Icon name="star" size={12} color="#f59e0b" /> {Number(store.rating).toFixed(1)} ({store.review_count})
-                      </span>
-                    ) : null}
-                  </div>
-                  <a href={`/store/${store.id}`} style={styles.mapStoreLink}>
-                    View <Icon name="arrow-right" size={12} />
-                  </a>
+              <div style={styles.mapListHead}>
+                <div style={styles.mapListToggle} role="tablist" aria-label="Browse map items">
+                  <button
+                    role="tab"
+                    aria-selected={!landmarkMode}
+                    onClick={() => setLandmarkMode(false)}
+                    style={{ ...styles.mapListTab, ...(!landmarkMode ? styles.mapListTabActive : {}) }}
+                  >
+                    Stores <span style={styles.mapListCount}>{stores.length}</span>
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={landmarkMode}
+                    onClick={() => setLandmarkMode(true)}
+                    style={{ ...styles.mapListTab, ...(landmarkMode ? styles.mapListTabActive : {}) }}
+                  >
+                    Landmarks <span style={styles.mapListCount}>{allLandmarks.length}</span>
+                  </button>
                 </div>
-              ))}
+              </div>
+
+              {!landmarkMode ? (
+                <>
+                  {stores.length === 0 && (
+                    <p style={styles.mapListEmpty}>
+                      No stores on the map yet — sellers appear here when they join. Tap{' '}
+                      <strong>Landmarks</strong> to see photo pins of store fronts & spots.
+                    </p>
+                  )}
+                  {stores.map((store) => (
+                    <div
+                      key={store.id}
+                      style={{ ...styles.mapStore, ...(selectedStore?.id === store.id ? styles.mapStoreActive : {}) }}
+                      onClick={() => setSelectedStore(store)}
+                    >
+                      <span style={styles.mapStoreAvatar}>{store.name.charAt(0)}</span>
+                      <div style={styles.mapStoreInfo}>
+                        <strong style={styles.mapStoreName}>{store.name}</strong>
+                        <span style={styles.mapStoreLoc}>{String(store.address || '').split(',')[0]}</span>
+                        {store.rating ? (
+                          <span style={styles.mapStoreRating}>
+                            <Icon name="star" size={12} color="#f59e0b" /> {Number(store.rating).toFixed(1)} ({store.review_count})
+                          </span>
+                        ) : null}
+                      </div>
+                      <a href={`/store/${store.id}`} style={styles.mapStoreLink}>
+                        View <Icon name="arrow-right" size={12} />
+                      </a>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {allLandmarks.length === 0 ? (
+                    <p style={styles.mapListEmpty}>
+                      No landmarks yet — tap{' '}<strong>＋ Add landmark</strong> on the map to pin & photo a store front or spot.
+                    </p>
+                  ) : (
+                    allLandmarks.map((lm) => (
+                      <div key={lm.id} style={styles.lmCard}>
+                        {lm.photo_url ? (
+                          <img src={lm.photo_url} alt={lm.name} style={styles.lmCardImg} />
+                        ) : (
+                          <div style={styles.lmCardImgEmpty}>🏪</div>
+                        )}
+                        <div style={styles.lmCardBody}>
+                          <strong style={styles.lmCardName}>{lm.name}</strong>
+                          {lm.notes && <span style={styles.lmCardNotes}>{lm.notes}</span>}
+                          {lm.store_id && lm.store_name ? (
+                            <a href={`/store/${lm.store_id}`} style={styles.lmCardStore}>
+                              🏪 {lm.store_name} <Icon name="arrow-right" size={11} />
+                            </a>
+                          ) : (
+                            <span style={styles.lmCardTag}>Landmark</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              )}
             </div>
             <div className="ko-map-wrap" style={styles.mapWrap}>
               <LiveMap
                 stores={stores}
+                landmarks={allLandmarks}
                 onStoreClick={setSelectedStore}
                 height="100%"
                 selectedStoreId={selectedStore?.id}
                 autoLocate
               />
-              {selectedStore && (
+              {selectedStore && !landmarkMode && (
                 <div style={styles.mapPopup}>
                   <strong style={styles.mapPopupName}>{selectedStore.name}</strong>
                   <p style={styles.mapPopupAddr}>{selectedStore.address}</p>
@@ -343,8 +423,27 @@ function SearchContent() {
                   </div>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => (user ? setShowCapture(true) : router.push('/auth/login'))}
+                style={styles.lmFab}
+                className="ko-lm-fab"
+                title="Pin & photo a store front or landmark"
+              >
+                <Icon name="camera" size={17} color="currentColor" />
+                Add landmark
+              </button>
             </div>
           </div>
+        )}
+
+        {showCapture && (
+          <AddLandmarkModal
+            stores={allStores}
+            user={user}
+            onClose={() => setShowCapture(false)}
+            onSaved={refreshLandmarks}
+          />
         )}
       </div>
     </div>
@@ -471,9 +570,53 @@ const styles = {
   },
 
   mapLayout: {},
-  mapList: { width: 340, overflowY: 'auto', flexShrink: 0, paddingRight: 4 },
-  mapListTitle: { fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', marginBottom: 12 },
+  mapList: { width: 340, overflowY: 'auto', flexShrink: 0, paddingRight: 4, display: 'flex', flexDirection: 'column', gap: 10 },
+  mapListHead: { position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 5, paddingBottom: 2 },
+  mapListToggle: {
+    display: 'flex', gap: 4, background: 'var(--bg-soft, #f1f5f9)',
+    border: '1px solid var(--border, #e2e8f0)', borderRadius: 999, padding: 3, marginBottom: 10,
+  },
+  mapListTab: {
+    flex: 1, border: 'none', background: 'transparent', borderRadius: 999,
+    padding: '7px 10px', fontSize: 12.5, fontWeight: 700, color: 'var(--muted)',
+    cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex',
+    alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap',
+  },
+  mapListTabActive: { background: 'var(--navy)', color: '#fff' },
+  mapListCount: {
+    fontSize: 11, fontWeight: 800, background: 'rgba(148, 163, 184, 0.25)',
+    color: 'inherit', borderRadius: 999, padding: '1px 7px',
+  },
   mapListEmpty: { fontSize: 13.5, lineHeight: 1.55, color: 'var(--muted)', background: 'var(--bg-soft, #f8fafc)', border: '1px dashed var(--border, #e2e8f0)', borderRadius: 12, padding: '14px 16px' },
+  lmCard: {
+    display: 'flex', gap: 11, alignItems: 'flex-start', background: '#fff',
+    border: '1px solid var(--border, #e2e8f0)', borderRadius: 14, padding: 10,
+    cursor: 'default',
+  },
+  lmCardImg: { width: 56, height: 56, borderRadius: 12, objectFit: 'cover', flexShrink: 0 },
+  lmCardImgEmpty: {
+    width: 56, height: 56, borderRadius: 12, flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'linear-gradient(135deg,#fff7e0,#fbbf24)', fontSize: 24,
+  },
+  lmCardBody: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 },
+  lmCardName: { fontSize: 14, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.3 },
+  lmCardNotes: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
+  lmCardStore: {
+    fontSize: 12, fontWeight: 700, color: '#0d7c3e', textDecoration: 'none',
+    display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2, alignSelf: 'flex-start',
+  },
+  lmCardTag: {
+    fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
+    color: '#0369a1', background: 'rgba(2, 132, 199, 0.1)', borderRadius: 999, padding: '2px 9px', alignSelf: 'flex-start',
+  },
+  lmFab: {
+    position: 'absolute', bottom: 16, left: 16, zIndex: 1200,
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    background: 'var(--navy)', color: '#fff', fontWeight: 800, fontSize: 13.5,
+    padding: '11px 18px', borderRadius: 999, border: 'none', cursor: 'pointer',
+    boxShadow: '0 6px 22px rgba(15, 23, 42, 0.4)', transition: 'transform 0.15s ease, background 0.2s ease',
+  },
   mapStore: {
     display: 'flex', gap: 12, alignItems: 'center', padding: 12, background: '#fff',
     border: '1px solid var(--border)', borderRadius: 14, marginBottom: 8, cursor: 'pointer',
