@@ -1,0 +1,24 @@
+# ── Dependencies ────────────────────────────────────────────────
+node_modules/
+
+# ── Next.js build output ────────────────────────────────────────
+.next/
+out/
+
+# ── Environment — never commit secrets ──────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs ────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── Workspace / tooling artifacts ───────────────────────────────
+.freebuff/
+preview.html
+preview-live.html
+
+# ── Stray local files (not part of the app) ─────────────────────
+/*.jpeg
+/*.jpg

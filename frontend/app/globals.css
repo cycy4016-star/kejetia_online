@@ -1,0 +1,2849 @@
+:root {
+  /* KejetiaOnline Brand - Navy & Orange */
+  --navy: #0F172A;
+  --navy-2: #1E293B;
+  --navy-3: #334155;
+  --ink: #0F172A;
+  --accent: #F59E0B;      /* amber/orange primary accent */
+  --accent-600: #D97706;
+  --accent-700: #B45309;
+  --accent-tint: rgba(245, 158, 11, 0.12);
+  --surface: #FFFFFF;
+  --bg: #F8FAFC;
+  --border: #E2E8F0;
+  --muted: #64748B;
+  --muted-light: #94A3B8;
+  --whatsapp: #25D366;
+  --danger: #EF4444;
+
+  /* Legacy Ghanaian Flag Colors - kept for map pins only */
+  --red: #CE1126;
+  --gold: #FCD116;
+  --green: #009B4C;
+  
+  /* Kumasi Map Colors - Legacy Secondary Palette (maps only) */
+  --market-green: #0d7c3e;
+  --neighborhood-green: #7cb342;
+  --market-tan: #c9a961;
+  --landmark-accent: #d97706;
+  --boundary-brown: #6b4423;
+  
+  /* Legacy Neutral Palette (maps only) */
+  --black: #0A0A0A;
+  --white: #FFFFFF;
+  --off-white: #F8F6F3;
+  --gray-100: #F0EFED;
+  --gray-200: #D4D2CE;
+  --gray-400: #9C9A96;
+  --gray-600: #5C5A56;
+  --gray-800: #2C2A28;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ============================================ */
+/* KejetiaOnline shared UI primitives          */
+/* ============================================ */
+
+/* Section heading row with optional link */
+.ko-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.ko-eyebrow {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-600);
+  margin-bottom: 8px;
+}
+
+.ko-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+}
+
+.ko-link-all {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-700);
+  text-decoration: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s ease;
+  cursor: pointer;
+}
+
+.ko-link-all:hover {
+  color: var(--accent-600);
+}
+
+/* Star rating chip */
+.ko-stars {
+  color: var(--accent);
+  letter-spacing: 1px;
+  font-size: 14px;
+}
+
+/* Primary / secondary buttons */
+.ko-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 700;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.ko-btn-accent {
+  background: var(--accent);
+  color: var(--navy);
+}
+
+.ko-btn-accent:hover {
+  background: var(--accent-600);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);
+}
+
+.ko-btn-dark {
+  background: var(--navy);
+  color: #fff;
+}
+
+.ko-btn-dark:hover {
+  background: var(--navy-2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+}
+
+.ko-btn-ghost {
+  background: transparent;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+}
+
+.ko-btn-ghost:hover {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ko-btn-whatsapp {
+  background: var(--whatsapp);
+  color: #fff;
+}
+
+.ko-btn-whatsapp:hover {
+  background: #1fb457;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(37, 211, 102, 0.35);
+}
+
+@media (max-width: 768px) {
+  .ko-title {
+    font-size: 26px;
+  }
+  .ko-section-head {
+    flex-wrap: wrap;
+  }
+}
+
+.kejetia-center-pin,
+.store-pin,
+.current-location-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kejetia-center-pin .pin-body,
+.store-pin .pin-body,
+.current-location-pin .pin-core {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+
+.kejetia-center-pin .pin-body {
+  background: var(--gold);
+  color: #000;
+  font-weight: 700;
+  font-size: 14px;
+  border: 3px solid #fff;
+}
+
+.store-pin .pin-body {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #009B4C;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.store-pin.active .pin-body {
+  background: var(--gold);
+  transform: scale(1.1);
+}
+
+.store-pin .pin-tip,
+.kejetia-center-pin .pin-tip,
+.current-location-pin .pin-ring {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.store-pin .pin-tip,
+.kejetia-center-pin .pin-tip {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+}
+
+.current-location-pin .pin-core {
+  width: 16px;
+  height: 16px;
+  background: rgba(66, 133, 244, 0.95);
+  border: 3px solid #fff;
+  animation: pulse-core 1.5s ease-out infinite;
+}
+
+.current-location-pin .pin-ring {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  background: rgba(66, 133, 244, 0.18);
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+@keyframes pulse-core {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.85; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.5; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+.image-map-kejetia-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #000;
+  z-index: 30;
+}
+
+.image-map-landmark-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: #5C5A56;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  z-index: 20;
+}
+
+.image-map-landmark-pin::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #fff;
+}
+
+.image-map-landmark-label {
+  position: absolute;
+  left: 50%;
+  top: -30px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(10, 10, 10, 0.75);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.image-map-landmark-pin:hover .image-map-landmark-label {
+  opacity: 1;
+}
+
+.image-map-store-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  transform: translate(-50%, -100%) rotate(-45deg);
+  background: var(--green);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  z-index: 40;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.image-map-store-pin::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.image-map-store-pin.active {
+  background: var(--gold);
+  transform: translate(-50%, -100%) rotate(-45deg) scale(1.15);
+  z-index: 50;
+}
+
+.image-map-selected-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 0;
+  background: #4285F4;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  z-index: 60;
+}
+
+.image-map-user-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(66, 133, 244, 0.95);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(66, 133, 244, 0.18);
+  z-index: 70;
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+/* ---- LiveMap (Leaflet, Google-like) ---- */
+
+.lm-layer-pill {
+  display: flex;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.lm-layer-btn {
+  border: none;
+  background: #fff;
+  color: var(--gray-800);
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.lm-layer-btn + .lm-layer-btn {
+  border-left: 1px solid var(--gray-100);
+}
+
+.lm-layer-btn.active {
+  background: var(--green);
+  color: #fff;
+}
+
+.lm-locate-btn {
+  width: 30px;
+  height: 30px;
+  margin-top: 8px;
+  background: #fff;
+  border: 1px solid #d4d2ce;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--gray-800);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.lm-landmark-pin .lm-landmark-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #0288d1;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+}
+
+.lm-landmark-tip {
+  color: #444;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.lm-selected-pin .lm-selected-body {
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  background: #4285f4;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transform: rotate(-45deg);
+}
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+}
+
+/* ============================================ */
+/* LiveMap: Google Maps style                  */
+/* ============================================ */
+
+.lm-map-wrap:fullscreen {
+  border-radius: 0 !important;
+}
+
+/* Layer pill (Map | Satellite | Kejetia) */
+.lm-layer-pill {
+  display: flex;
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: 0 1px 6px rgba(60, 64, 67, 0.3);
+  z-index: 1000;
+}
+
+.lm-layer-btn {
+  border: none;
+  background: transparent;
+  color: #5f6368;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.lm-layer-btn + .lm-layer-btn {
+  border-left: none;
+}
+
+.lm-layer-btn:hover {
+  background: #f1f3f4;
+}
+
+.lm-layer-btn.active {
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-weight: 600;
+}
+
+/* Zoom control (bottom right) */
+.lm-zoom-ctrl {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(60, 64, 67, 0.3);
+}
+
+.lm-zoom-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.lm-zoom-btn + .lm-zoom-btn {
+  border-top: 1px solid #e8eaed;
+}
+
+.lm-zoom-btn:hover {
+  background: #f1f3f4;
+}
+
+.lm-zoom-btn:active {
+  background: #e8eaed;
+}
+
+/* Round utility buttons (locate me, fullscreen) */
+.lm-round-btn {
+  width: 40px;
+  height: 40px;
+  margin-top: 10px;
+  background: #fff;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(60, 64, 67, 0.3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+  padding: 0;
+}
+
+.lm-round-btn:hover {
+  background: #f1f3f4;
+}
+
+.lm-round-btn:active {
+  background: #e8eaed;
+}
+
+.lm-round-btn.locating svg {
+  animation: lm-spin 0.9s linear infinite;
+}
+
+@keyframes lm-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* CSS-only fullscreen fallback (used when the fullscreen API is blocked) */
+.lm-map-wrap.lm-map-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+  z-index: 99999 !important;
+}
+
+/* Map notice toast */
+.lm-map-notice {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: #323232;
+  color: #fff;
+  font-size: 13px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  z-index: 1200;
+  max-width: 80%;
+  text-align: center;
+  pointer-events: none;
+  animation: lm-notice-in 0.2s ease-out;
+}
+
+@keyframes lm-notice-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Scale bar (bottom left) */
+.leaflet-control.leaflet-control-scale {
+  margin: 0 0 14px 16px;
+}
+
+.leaflet-control-scale .leaflet-control-scale-line {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #202124;
+  border-top: none;
+  color: #202124;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+
+/* Attribution (small pill, bottom right) */
+.leaflet-control.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  color: #5f6368;
+}
+
+.leaflet-control.leaflet-control-attribution a {
+  color: #5f6368;
+}
+
+/* Google-style red teardrop store pins */
+.lm-store-pin {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
+
+.lm-store-pin .pin-body {
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 50% 50% 0;
+  background: #ea4335;
+  border: 3px solid #fff;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.lm-store-pin.active .pin-body {
+  transform: rotate(-45deg) scale(1.12);
+}
+
+.lm-store-pin.active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 3px solid rgba(234, 67, 53, 0.5);
+  animation: lm-pulse-ring 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes lm-pulse-ring {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+}
+
+/* Place card popup (Google style) */
+.leaflet-popup .leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  padding: 0;
+}
+
+.leaflet-popup .leaflet-popup-content {
+  margin: 0;
+}
+
+.lm-place-card {
+  padding: 16px;
+  min-width: 240px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  text-align: left;
+}
+
+.lm-place-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #202124;
+  margin-bottom: 4px;
+}
+
+.lm-place-addr {
+  font-size: 13px;
+  color: #5f6368;
+  margin-bottom: 2px;
+}
+
+.lm-place-phone {
+  font-size: 13px;
+  color: #1a73e8;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.lm-place-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lm-place-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  background: #f1f3f4;
+  color: #1a73e8;
+}
+
+.lm-place-btn:hover {
+  background: #e8eaed;
+}
+
+.lm-place-btn-primary {
+  background: #1a73e8;
+  color: #fff;
+}
+
+.lm-place-btn-primary:hover {
+  background: #1765cc;
+}
+
+.leaflet-popup-close-button {
+  color: #5f6368 !important;
+  font-size: 18px !important;
+  padding: 8px 8px 0 0 !important;
+}
+
+/* Google-style in-market directions card */
+.lm-dir-card {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 264px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  z-index: 1000;
+  padding: 14px 16px;
+  color: #202124;
+}
+
+.lm-dir-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: #5f6368;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50%;
+}
+
+.lm-dir-close:hover {
+  background: #f1f3f4;
+}
+
+.lm-dir-title {
+  font-size: 15px;
+  font-weight: 500;
+  padding-right: 24px;
+}
+
+.lm-dir-meta {
+  font-size: 13px;
+  color: #1a73e8;
+  margin: 4px 0 10px;
+}
+
+.lm-dir-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #e8eaed;
+}
+
+.lm-dir-steps li {
+  font-size: 13px;
+  color: #3c4043;
+  padding: 7px 0 7px 18px;
+  border-bottom: 1px solid #f1f3f4;
+  position: relative;
+  line-height: 1.4;
+}
+
+.lm-dir-steps li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 13px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a73e8;
+}
+
+.lm-dir-steps li:last-child::before {
+  background: #34a853;
+}
+
+.lm-dir-tip {
+  font-size: 12px;
+  color: #5f6368;
+  margin-top: 10px;
+}
+
+/* ============ Google Maps style home page ============ */
+.gm-searchbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  width: min(420px, calc(100% - 24px));
+}
+
+.gm-searchform {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: 24px;
+  padding: 6px 8px 6px 14px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+}
+
+.gm-search-icon {
+  font-size: 15px;
+  color: #5f6368;
+}
+
+.gm-searchform input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: #202124;
+  background: transparent;
+  min-width: 0;
+}
+
+.gm-dirbtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f3f4;
+  cursor: pointer;
+  color: #1a73e8;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gm-dirbtn:hover {
+  background: #e8eaed;
+}
+
+.gm-suggestions {
+  margin-top: 8px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.gm-suggestion {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.gm-suggestion:hover {
+  background: #f8f9fa;
+}
+
+.gm-sug-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.gm-sug-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gm-sug-name {
+  font-size: 14px;
+  color: #202124;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-sug-sub {
+  font-size: 12px;
+  color: #5f6368;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Directions panel */
+.gm-dir {
+  position: absolute;
+  top: 64px;
+  left: 12px;
+  z-index: 1000;
+  width: min(340px, calc(100% - 24px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 80px);
+}
+
+.gm-dir-header {
+  display: flex;
+  gap: 6px;
+  padding: 12px 12px 4px;
+}
+
+.gm-dir-back {
+  border: none;
+  background: none;
+  font-size: 16px;
+  color: #5f6368;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 2px 6px;
+}
+
+.gm-dir-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gm-dir-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f1f3f4;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.gm-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gm-dot-green {
+  background: #34a853;
+}
+
+.gm-dot-red {
+  background: #ea4335;
+}
+
+.gm-dir-field input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #202124;
+  min-width: 0;
+}
+
+.gm-dir-locate,
+.gm-dir-swap {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 15px;
+  color: #1a73e8;
+  padding: 2px;
+}
+
+.gm-dir-modes {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.gm-dir-modes button {
+  flex: 1;
+  padding: 8px;
+  border-radius: 20px;
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #3c4043;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gm-dir-modes button.active {
+  background: #e8f0fe;
+  border-color: #1a73e8;
+  color: #1a73e8;
+  font-weight: 600;
+}
+
+.gm-dir-status {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #5f6368;
+}
+
+.gm-dir-error {
+  color: #d93025;
+}
+
+.gm-dir-body {
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+}
+
+.gm-dir-summary {
+  font-size: 15px;
+  color: #202124;
+  margin-bottom: 10px;
+}
+
+.gm-dir-via {
+  font-size: 12px;
+  color: #5f6368;
+  margin-left: 6px;
+}
+
+.gm-dir-steps {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  border-top: 1px solid #f1f3f4;
+}
+
+.gm-dir-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f3f4;
+  font-size: 13px;
+  color: #3c4043;
+}
+
+.gm-step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a73e8;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.gm-dir-steps li:last-child .gm-step-dot {
+  background: #34a853;
+}
+
+.gm-step-text {
+  flex: 1;
+}
+
+.gm-step-dist {
+  color: #5f6368;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gm-dir-start {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 24px;
+  background: #1a73e8;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gm-dir-start:hover {
+  background: #1765cc;
+}
+
+/* Floating places list */
+.gm-places {
+  position: absolute;
+  top: 64px;
+  left: 12px;
+  z-index: 999;
+  width: min(340px, calc(100% - 24px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 140px);
+}
+
+.gm-places-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.gm-places-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5f6368;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gm-places-collapse {
+  border: none;
+  background: none;
+  color: #5f6368;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.gm-places-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.gm-place {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f8f9fa;
+}
+
+.gm-place:hover {
+  background: #f8f9fa;
+}
+
+.gm-place.active {
+  background: #e8f0fe;
+}
+
+.gm-place-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f1f3f4;
+  color: #1a73e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.gm-place-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.gm-place-name {
+  font-size: 14px;
+  color: #202124;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-place-addr {
+  font-size: 12px;
+  color: #5f6368;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm-place-arrow {
+  color: #dadce0;
+  font-size: 20px;
+}
+
+.gm-places-empty {
+  padding: 20px 14px;
+  font-size: 13px;
+  color: #5f6368;
+}
+
+.gm-places-cta {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a73e8;
+  text-decoration: none;
+  border-top: 1px solid #f1f3f4;
+}
+
+/* Store popup */
+.gm-popup {
+  position: absolute;
+  bottom: 16px;
+  left: 12px;
+  z-index: 1000;
+  width: min(320px, calc(100% - 24px));
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+}
+
+.gm-popup-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: #5f6368;
+  cursor: pointer;
+}
+
+.gm-popup-title {
+  font-size: 17px;
+  font-weight: 500;
+  color: #202124;
+  padding-right: 20px;
+}
+
+.gm-popup-addr {
+  font-size: 13px;
+  color: #5f6368;
+  margin-top: 2px;
+}
+
+.gm-popup-phone {
+  font-size: 13px;
+  color: #1a73e8;
+  margin-top: 2px;
+}
+
+.gm-popup-desc {
+  font-size: 13px;
+  color: #3c4043;
+  margin-top: 8px;
+}
+
+.gm-popup-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.gm-btn {
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #3c4043;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.gm-btn:hover {
+  background: #f8f9fa;
+}
+
+.gm-btn-blue {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.gm-btn-blue:hover {
+  background: #1765cc;
+}
+
+.gm-btn-chat {
+  background: #fff;
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+/* Navigation banner */
+.gm-nav {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: min(520px, calc(100% - 24px));
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+}
+
+.gm-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gm-nav-instr {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: #202124;
+}
+
+.gm-nav-end {
+  background: #d93025;
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gm-nav-end:hover {
+  background: #c5221f;
+}
+
+.gm-nav-meta {
+  font-size: 12px;
+  color: #5f6368;
+  margin-top: 6px;
+}
+
+/* Mobile */
+.gm-mobile-stores {
+  display: none;
+  position: absolute;
+  bottom: 16px;
+  right: 12px;
+  z-index: 1000;
+  background: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .gm-places {
+    top: auto;
+    bottom: 16px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 45%;
+  }
+
+  .gm-dir {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100% - 24px);
+  }
+
+  .gm-mobile-stores {
+    display: block;
+  }
+
+  .gm-popup {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: 16px;
+  }
+}
+
+/* ============================================ */
+/* Organic Map Feel — Loading, Error, Cursor   */
+/* ============================================ */
+
+/* ── Loading skeleton overlay ── */
+.lm-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1100;
+  background: #e8eaed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.lm-skeleton-pulse {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    #e8eaed 30%,
+    #f8f9fa 50%,
+    #e8eaed 70%
+  );
+  background-size: 200% 100%;
+  animation: lm-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes lm-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.lm-skeleton-text {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #5f6368;
+  font-weight: 500;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Error fallback ── */
+.lm-error {
+  position: absolute;
+  inset: 0;
+  z-index: 1100;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
+.lm-error-icon {
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+.lm-error-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #202124;
+}
+
+.lm-error-detail {
+  font-size: 13px;
+  color: #5f6368;
+  max-width: 320px;
+}
+
+.lm-error-retry {
+  margin-top: 12px;
+  padding: 10px 24px;
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lm-error-retry:hover {
+  background: #1557b0;
+}
+
+/* ── Organic cursor states ── */
+.lm-map-wrap {
+  cursor: grab;
+  transition: cursor 0.1s;
+}
+
+.lm-map-wrap:active {
+  cursor: grabbing;
+}
+
+/* Marker pins get pointer on hover */
+.lm-store-pin {
+  cursor: pointer !important;
+}
+
+.lm-store-pin .pin-body {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover lift on store pins */
+.lm-store-pin:hover .pin-body {
+  transform: rotate(-45deg) scale(1.08);
+  box-shadow: 0 4px 12px rgba(234, 67, 53, 0.4);
+}
+
+.lm-store-pin.active .pin-body {
+  transform: rotate(-45deg) scale(1.15);
+  box-shadow: 0 4px 16px rgba(234, 67, 53, 0.5);
+}
+
+/* Kejetia center pin hover */
+.kejetia-center-pin {
+  cursor: pointer;
+}
+
+.kejetia-center-pin .pin-body {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kejetia-center-pin:hover .pin-body {
+  transform: scale(1.1);
+  box-shadow: 0 4px 14px rgba(252, 209, 22, 0.45);
+}
+
+/* Landmark pin hover */
+.lm-landmark-pin {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.lm-landmark-pin:hover {
+  transform: scale(1.15);
+}
+
+/* ── Smooth Leaflet transitions ── */
+.leaflet-tile {
+  transition: opacity 0.3s ease;
+}
+
+.leaflet-popup-content-wrapper {
+  transition: box-shadow 0.2s ease;
+}
+
+.leaflet-popup-content-wrapper:hover {
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Organic tile fade-in ── */
+@keyframes lm-tile-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.leaflet-tile-loaded {
+  animation: lm-tile-fade 0.3s ease-out;
+}
+
+/* ── Improved zoom button micro-interactions ── */
+.lm-zoom-btn {
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+
+.lm-zoom-btn:active {
+  transform: scale(0.92);
+}
+
+.lm-round-btn {
+  transition: background 0.12s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.lm-round-btn:active {
+  transform: scale(0.92);
+}
+
+.lm-round-btn:hover {
+  box-shadow: 0 2px 10px rgba(60, 64, 67, 0.35);
+}
+
+/* ── Layer pill transitions ── */
+.lm-layer-btn {
+  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+}
+
+.lm-layer-btn:active {
+  transform: scale(0.95);
+}
+
+/* ── Direction card slide-in ── */
+.lm-dir-card {
+  animation: lm-slide-in 0.25s ease-out;
+}
+
+@keyframes lm-slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Navigation banner slide-up ── */
+.gm-nav {
+  animation: lm-slide-up 0.3s ease-out;
+}
+
+@keyframes lm-slide-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Google-style popup marker anchor ── */
+.leaflet-popup {
+  margin-bottom: 12px;
+}
+
+.leaflet-popup-tip {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Mobile: bigger touch targets ── */
+@media (max-width: 768px) {
+  .lm-zoom-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lm-round-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lm-layer-btn {
+    padding: 9px 18px;
+    font-size: 14px;
+  }
+
+  .gm-nav {
+    bottom: 12px;
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .gm-popup {
+    border-radius: 16px;
+  }
+}
+
+/* ── Smooth map tile transitions at all zoom levels ── */
+.leaflet-container {
+  transition: background-color 0.4s ease;
+}
+
+/* ── Improved place card ── */
+.lm-place-card {
+  transition: transform 0.15s ease;
+}
+
+.lm-place-btn {
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.lm-place-btn:active {
+  transform: scale(0.96);
+}
+
+/* ── Search clear button ── */
+.gm-clear-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.12s;
+  padding: 0;
+}
+
+.gm-clear-btn:hover {
+  background: #f1f3f4;
+}
+
+/* ── Search icon (SVG) ── */
+.gm-searchform .gm-search-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Suggestion icons (SVG) ── */
+.gm-sug-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/* ── Suggestion hover micro-interaction ── */
+.gm-suggestion {
+  transition: background 0.12s ease;
+}
+
+.gm-suggestion:active {
+  background: #e8eaed;
+}
+
+/* ── Direction button SVG ── */
+.gm-dirbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+
+.gm-dirbtn:active {
+  transform: scale(0.92);
+}
+
+/* ── Popup slide-up animation ── */
+.gm-popup-animate {
+  animation: gm-popup-in 0.25s ease-out;
+}
+
+@keyframes gm-popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Store list item micro-interaction ── */
+.gm-place {
+  transition: background 0.12s ease;
+}
+
+.gm-place:active {
+  background: #e8eaed;
+}
+
+.gm-place-icon {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gm-place.active .gm-place-icon {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+/* ── Searchbox focus glow ── */
+.gm-searchform:focus-within {
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 0 0 2px rgba(26, 115, 232, 0.25);
+}
+
+/* ============================================ */
+/* Remote User Banner — for users far away    */
+/* ============================================ */
+
+.lm-remote-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  width: min(380px, calc(100% - 24px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  padding: 16px;
+  animation: lm-slide-down 0.3s ease-out;
+  text-align: center;
+}
+
+@keyframes lm-slide-down {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.lm-remote-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+
+.lm-remote-close:hover {
+  background: #f1f3f4;
+}
+
+.lm-remote-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.lm-remote-distance {
+  font-size: 18px;
+  font-weight: 600;
+  color: #202124;
+}
+
+.lm-remote-sub {
+  font-size: 13px;
+  color: #5f6368;
+  margin-bottom: 14px;
+}
+
+.lm-remote-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.lm-remote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #3c4043;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  transition: background 0.12s, transform 0.1s;
+}
+
+.lm-remote-btn:active {
+  transform: scale(0.96);
+}
+
+.lm-remote-btn:hover {
+  background: #f8f9fa;
+}
+
+.lm-remote-btn-primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.lm-remote-btn-primary:hover {
+  background: #1765cc;
+}
+
+/* Distance badge on the map line */
+.lm-distance-badge {
+  background: #1a73e8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.lm-distance-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Mobile remote banner */
+@media (max-width: 768px) {
+  .lm-remote-banner {
+    top: 8px;
+    width: calc(100% - 16px);
+    padding: 14px;
+  }
+
+  .lm-remote-actions {
+    flex-wrap: wrap;
+  }
+
+  .lm-remote-btn {
+    flex: 1;
+    justify-content: center;
+    min-width: 100px;
+    padding: 10px 12px;
+  }
+}
+
+/* ── Directions button in search ── */
+.gm-searchform .gm-dirbtn {
+  transition: background 0.12s, transform 0.1s;
+}
+
+/* ============================================ */
+/* Ghana-wide Map — User dots, clusters, etc.  */
+/* ============================================ */
+
+/* ── Fly to Kejetia button ── */
+.lm-fly-kejetia {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 20px 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.4);
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  animation: lm-slide-up 0.3s ease-out;
+  white-space: nowrap;
+}
+
+.lm-fly-kejetia:hover {
+  background: #1557b0;
+  box-shadow: 0 4px 14px rgba(26, 115, 232, 0.5);
+}
+
+.lm-fly-kejetia:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+.lm-fly-kejetia svg {
+  flex-shrink: 0;
+}
+
+/* ── User count pill ── */
+.lm-user-count-pill {
+  position: absolute;
+  bottom: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3c4043;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  animation: lm-slide-up 0.3s ease-out;
+}
+
+.lm-user-count-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a73e8;
+  flex-shrink: 0;
+}
+
+/* ── User location dot (single) ── */
+.lm-user-dot {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.lm-user-dot-core {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(26, 115, 232, 0.4);
+  transition: transform 0.2s ease;
+}
+
+.lm-user-dot:hover .lm-user-dot-core {
+  transform: scale(1.4);
+  background: #1557b0;
+}
+
+/* ── User cluster ── */
+.lm-user-cluster {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.lm-cluster-circle {
+  border-radius: 50%;
+  background: rgba(26, 115, 232, 0.2);
+  border: 2px solid rgba(26, 115, 232, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.lm-cluster-circle:hover {
+  background: rgba(26, 115, 232, 0.3);
+  transform: scale(1.1);
+}
+
+.lm-cluster-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1a73e8;
+}
+
+/* ── Kejetia national pin styling ── */
+.kejetia-pin-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gold) !important;
+  color: #000 !important;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.kejetia-icon-text {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* ── Mobile adjustments ── */
+@media (max-width: 768px) {
+  .lm-fly-kejetia {
+    bottom: 70px;
+    padding: 10px 16px 10px 12px;
+    font-size: 13px;
+  }
+
+  .lm-user-count-pill {
+    bottom: 115px;
+    font-size: 11px;
+  }
+}
+
+/* ╔════════════════════════════════════════════════════════════╗ */
+/* ║  KEJETIAONLINE HERO — Dark Navy & Orange (v3)              ║ */
+/* ╚════════════════════════════════════════════════════════════╝ */
+
+.ko-hero {
+  position: relative;
+  background:
+    radial-gradient(900px 480px at 88% -10%, rgba(245, 158, 11, 0.16) 0%, transparent 60%),
+    radial-gradient(720px 420px at -5% 115%, rgba(56, 189, 248, 0.10) 0%, transparent 55%),
+    linear-gradient(115deg, #0b1220 0%, #0f172a 55%, #17203c 100%);
+  overflow: hidden;
+  padding: 76px 0 88px;
+}
+
+.ko-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/map/kejetia-map.jpg');
+  background-size: cover;
+  background-position: center 30%;
+  background-repeat: no-repeat;
+  opacity: 0.12;
+  filter: saturate(0.5);
+  z-index: 0;
+}
+
+.ko-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  gap: 64px;
+  align-items: center;
+}
+
+.ko-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fcd34d;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.ko-hero-title {
+  font-size: 54px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.06;
+  margin-bottom: 18px;
+  letter-spacing: -1.2px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.35);
+}
+
+.ko-hero-title .ko-hero-highlight {
+  color: var(--accent);
+  position: relative;
+}
+
+.ko-hero-sub {
+  font-size: 18px;
+  color: rgba(226, 232, 240, 0.85);
+  line-height: 1.65;
+  margin-bottom: 34px;
+  max-width: 540px;
+}
+
+/* Search bar */
+.ko-search {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 16px;
+  padding: 6px;
+  padding-left: 20px;
+  max-width: 620px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.35);
+  gap: 10px;
+}
+
+.ko-search-pin {
+  font-size: 18px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+
+.ko-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 14px 0;
+  font-size: 16px;
+  background: transparent;
+  color: var(--ink);
+  min-width: 0;
+  font-family: inherit;
+}
+
+.ko-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.ko-search-btn {
+  background: var(--accent);
+  color: var(--navy);
+  border: none;
+  padding: 14px 30px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.ko-search-btn:hover {
+  background: var(--accent-600);
+  box-shadow: 0 8px 22px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Quick category chips */
+.ko-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.ko-chip {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(226, 232, 240, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(6px);
+}
+
+.ko-chip:hover {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fcd34d;
+  transform: translateY(-2px);
+}
+
+/* Right visual: market photo + Explore card */
+.ko-hero-visual {
+  position: relative;
+}
+
+.ko-hero-photo {
+  position: relative;
+  height: 430px;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 34px 70px rgba(0, 0, 0, 0.5);
+  transform: rotate(1.5deg);
+}
+
+.ko-hero-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ko-hero-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(200deg, rgba(15, 23, 42, 0.05) 35%, rgba(15, 23, 42, 0.55) 100%);
+}
+
+/* Map pin overlay */
+.ko-pin {
+  position: absolute;
+  top: 38%;
+  left: 46%;
+  z-index: 2;
+}
+
+.ko-pin-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 84px;
+  height: 84px;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(239, 68, 68, 0.6);
+  border-radius: 50%;
+  animation: ko-pin-pulse 1.9s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ko-pin-pulse {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+}
+
+.ko-pin-head {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #ef4444;
+  border: 3px solid #fff;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.55);
+  animation: ko-pin-bob 2.4s ease-in-out infinite;
+}
+
+.ko-pin-head::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+@keyframes ko-pin-bob {
+  0%, 100% { transform: rotate(-45deg) translateY(0); }
+  50% { transform: rotate(-45deg) translateY(-7px); }
+}
+
+/* Explore Kejetia card */
+.ko-hero-mapcard {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 20px;
+  z-index: 3;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 18px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.ko-hero-mapcard-txt {
+  flex: 1;
+  min-width: 0;
+}
+
+.ko-hero-mapcard-txt strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.ko-hero-mapcard-txt span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.ko-mapbtn {
+  padding: 10px 18px;
+  font-size: 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  .ko-hero {
+    padding: 56px 0 64px;
+  }
+  .ko-hero-inner {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .ko-hero-visual {
+    display: none;
+  }
+  .ko-hero-title {
+    font-size: 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .ko-hero-title {
+    font-size: 34px;
+  }
+  .ko-hero-sub {
+    font-size: 16px;
+  }
+  .ko-search {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .ko-search-pin {
+    display: none;
+  }
+  .ko-search-input {
+    padding: 16px 18px;
+  }
+  .ko-search-btn {
+    border-radius: 0;
+    padding: 15px 16px;
+    font-size: 16px;
+  }
+  .ko-chips {
+    gap: 8px;
+  }
+  .ko-chip {
+    padding: 7px 13px;
+    font-size: 12px;
+  }
+}
+
+/* ============================================ */
+/* Responsive overrides for inline-styled UI    */
+/* ============================================ */
+
+/* Header */
+.ko-header-burger {
+  display: none;
+}
+.ko-header-menu {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .ko-header-nav { display: none !important; }
+  .ko-header-signin { display: none !important; }
+  .ko-header-cta { display: none !important; }
+  .ko-header-avatar { display: none !important; }
+  .ko-header-signout { display: none !important; }
+  .ko-header-burger { display: flex !important; }
+  .ko-header-menu.open { display: flex !important; }
+}
+
+/* Footer columns */
+.container.ko-footer-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1.2fr;
+  gap: 44px;
+  padding: 64px 24px 48px;
+}
+
+@media (max-width: 900px) {
+  .container.ko-footer-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+  }
+}
+
+@media (max-width: 560px) {
+  .container.ko-footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dealer banner */
+.ko-dealer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 64px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .ko-dealer {
+    flex-direction: column;
+    text-align: center;
+    padding: 56px 24px;
+  }
+  .ko-dealer-art {
+    display: none;
+  }
+  .ko-dealer-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Onboarding wizard layout */
+.ko-ob-wrap {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 28px;
+  padding: 32px 24px 72px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.ko-ob-content {
+  padding: 36px 40px;
+}
+
+@media (max-width: 860px) {
+  .ko-ob-wrap {
+    grid-template-columns: 1fr;
+    padding: 20px 16px 56px;
+  }
+  .ko-ob-rail {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .ko-ob-rail-step {
+    padding: 7px 10px !important;
+  }
+  .ko-ob-rail-brand,
+  .ko-ob-rail-card {
+    display: none !important;
+  }
+  .ko-ob-content {
+    padding: 24px 18px;
+  }
+}
+
+/* Search page map layout */
+.ko-map-layout {
+  display: flex;
+  gap: 22px;
+  height: calc(100vh - 300px);
+  min-height: 460px;
+}
+
+@media (max-width: 860px) {
+  .ko-map-layout {
+    flex-direction: column;
+    height: auto;
+  }
+  .ko-map-list {
+    width: 100% !important;
+    max-height: 260px;
+  }
+  .ko-map-wrap {
+    min-height: 380px;
+  }
+}
+
+/* ============================================ */
+/* ProductImage — professional photo renderer  */
+/* ============================================ */
+
+.ko-pimg {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 90% at 15% 0%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(140deg, #eef2f7 0%, #e2e8f0 100%);
+}
+
+.ko-pimg-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+  padding: 8px;
+}
+
+.ko-pimg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  max-width: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.ko-pimg-img.ko-pimg-loaded {
+  opacity: 1;
+}
+
+/* Gentle zoom on the product card visuals when hovering */
+@media (hover: hover) {
+  .ko-pimg-zoom .ko-pimg {
+    transition: background-color 0.2s ease;
+  }
+  .ko-pimg-zoom:hover .ko-pimg-img.ko-pimg-loaded {
+    transform: scale(1.05);
+  }
+  .ko-pimg-img {
+    transition: opacity 0.35s ease, transform 0.55s ease;
+  }
+}
+
+/* ============================================ */
+/* Mobile polish for page-level layouts        */
+/* ============================================ */
+
+/* Auth pages: collapse the two-panel shell on phones */
+@media (max-width: 860px) {
+  .ko-auth-shell {
+    grid-template-columns: 1fr !important;
+    max-width: 560px;
+  }
+  .ko-auth-shell .ko-auth-hero {
+    border-radius: 0;
+  }
+  .ko-auth-shell .ko-auth-hero .ko-auth-hero-content {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .ko-auth-shell {
+    max-width: 100%;
+    border-radius: 20px;
+  }
+  .ko-auth-shell .ko-auth-hero {
+    padding: 16px 18px 18px;
+  }
+  .ko-auth-shell .ko-auth-hero .ko-eyebrow {
+    margin-bottom: 8px;
+  }
+  .ko-auth-shell .ko-auth-hero h1 {
+    font-size: 24px !important;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .ko-auth-shell .ko-auth-hero .ko-auth-hero-text,
+  .ko-auth-shell .ko-auth-benefits {
+    display: none;
+  }
+  .ko-auth-shell .ko-auth-form-panel {
+    padding: 22px 18px 26px;
+  }
+  .ko-auth-fields-2col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Collapse two-column editor grids on small phones */
+@media (max-width: 560px) {
+  .ko-form-2col {
+    grid-template-columns: 1fr !important;
+  }
+  .ko-ob-done-stats {
+    gap: 8px;
+  }
+  .ko-ob-done-stats .ko-ob-done-stat {
+    padding: 14px 6px;
+  }
+}
+
+/* Header: keep the logo from crowding the burger on tiny screens */
+@media (max-width: 400px) {
+  .ko-header-inner img {
+    height: 40px !important;
+  }
+}
+
+/* Contain all embedded media so nothing can force horizontal scroll */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+.ko-hero-mapcard-txt strong svg,
+.ko-btn svg,
+.ko-hero-badge svg,
+.ko-search-pin svg {
+  flex-shrink: 0;
+}
+
+/* ============================================ */
+/* Mobile-first polish for every page          */
+/* ============================================ */
+
+/* Safety net: nothing can force horizontal scroll */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* iOS Safari zooms into any input/select smaller than 16px on focus.
+   Bumping every field to 16px on touch screens kills that zoom and
+   makes the tap targets bigger — the standard mobile fix. */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Homepage sections: tighter rhythm on phones */
+@media (max-width: 768px) {
+  .ko-section {
+    padding: 48px 0 !important;
+  }
+  .ko-dealer {
+    padding: 48px 24px !important;
+  }
+}
+
+/* Dealer banner title scales down on phones */
+@media (max-width: 560px) {
+  .ko-dealer-title {
+    font-size: 30px !important;
+  }
+  .ko-dealer-sub {
+    font-size: 15.5px !important;
+  }
+  .ko-dealer-btn {
+    width: 100%;
+  }
+}
+
+/* Hero: less vertical padding on small screens */
+@media (max-width: 640px) {
+  .ko-hero {
+    padding: 40px 0 48px !important;
+  }
+}
+
+/* Store page: shorter cover + wrapping tabs on phones */
+@media (max-width: 640px) {
+  .ko-store-cover {
+    height: 168px !important;
+  }
+  .ko-store-tabs {
+    margin: 26px 0 18px !important;
+    gap: 2px !important;
+  }
+  .ko-store-tab {
+    padding: 10px 12px !important;
+    font-size: 13.5px !important;
+  }
+}
+
+/* Seller dashboard: tighter page padding on phones */
+@media (max-width: 560px) {
+  .ko-dash-content {
+    padding: 26px 16px 56px !important;
+  }
+}
+
+/* Seller dashboard product rows: two-line layout on phones.
+   Line 1: thumb + name + Live/Hide actions.
+   Line 2: the Was / Stock editors stretch full width. */
+@media (max-width: 640px) {
+  .ko-product-row {
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+  .ko-product-info {
+    flex: 1 1 calc(100% - 60px) !important;
+  }
+  .ko-product-actions {
+    order: 2;
+    margin-left: auto;
+  }
+  .ko-row-editors {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: stretch !important;
+  }
+  .ko-row-editors input {
+    flex: 1;
+    min-width: 0;
+    width: auto !important;
+  }
+}
+
+/* Category picker chips go full-width on very small phones */
+@media (max-width: 420px) {
+  .ko-ob-catgrid {
+    grid-template-columns: 1fr !important;
+  }
+}
