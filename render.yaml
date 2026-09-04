@@ -1,6 +1,7 @@
-# Render Blueprint — one-click deploy for Kejetia Online.
+# Render Blueprint — one-click deploy for Kejetia Online (frontend only).
 # Push this repo to GitHub and create a new Blueprint on Render, or use
 # "Deploy from Blueprint" with this file. Fill in the env values below.
+# The backend is Supabase — the old Express stub has been removed.
 
 services:
   # ── Frontend: Next.js ────────────────────────────────────────────────
@@ -18,15 +19,3 @@ services:
         sync: false
       - key: NEXT_PUBLIC_GOOGLE_MAPS_KEY
         sync: false        # optional — the map runs on free layers without it
-
-  # ── Backend: Express API ─────────────────────────────────────────────
-  - type: web
-    name: kejetia-online-api
-    runtime: docker
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
-    plan: free
-    healthCheckPath: /api/health
-    envVars:
-      - key: PORT
-        value: 5000
