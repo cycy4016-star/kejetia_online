@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment TEXT,
   author_name TEXT NOT NULL,
-  author_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  author_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

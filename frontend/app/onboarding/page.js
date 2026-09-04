@@ -9,6 +9,7 @@ import LiveMap from '@/components/maps/LiveMap'
 import { MARKET_CATEGORIES, PRODUCT_ART } from '@/lib/categories'
 import { KEJETIA_CENTER } from '@/lib/map-geo'
 import { Icon, iconNameFor } from '@/components/icons'
+import { uploadProductImages, readMockImages } from '@/lib/media'
 
 const STEPS = [
   { id: 'welcome', num: '01', label: 'Welcome' },
@@ -125,25 +126,14 @@ export default function OnboardingPage() {
   }
 
   // ── Photo handling (Jiji-style) ──
-  const readFiles = (fileList) => {
-    const files = Array.from(fileList || []).slice(0, 3)
-    return Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve) => {
-            if (file.size > 1.5 * 1024 * 1024) return resolve(null)
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.onerror = () => resolve(null)
-            reader.readAsDataURL(file)
-          })
-      )
-    ).then((results) => results.filter(Boolean))
-  }
-
   const onDraftPhotos = async (fileList) => {
-    const images = await readFiles(fileList)
-    setDraft((prev) => ({ ...prev, images: [...prev.images, ...images].slice(0, 3) }))
+    const files = Array.from(fileList || []).slice(0, 3)
+    const previews = await readMockImages(files)
+    setDraft((prev) => ({
+      ...prev,
+      files: [...(prev.files || []), ...files].slice(0, 3),
+      images: [...prev.images, ...previews].slice(0, 3),
+    }))
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -157,6 +147,7 @@ export default function OnboardingPage() {
     description: '',
     icon: 'shopping-bag',
     images: [],
+    files: [],
   })
   const [draftError, setDraftError] = useState('')
 
@@ -170,6 +161,7 @@ export default function OnboardingPage() {
       description: '',
       icon: 'shopping-bag',
       images: [],
+      files: [],
     })
     setDraftError('')
   }
@@ -185,6 +177,12 @@ export default function OnboardingPage() {
     setSaving(true)
     const sb = getSupabase()
     try {
+      // Real mode: upload selected photos to Storage; the row stores URLs.
+      let images = draft.images.length ? draft.images : []
+      if (draft.files && draft.files.length) {
+        const uploaded = await uploadProductImages(draft.files, existingStore.id)
+        if (uploaded.length) images = uploaded
+      }
       const { error: inErr } = await sb.from('products').insert({
         store_id: existingStore.id,
         name: draft.name.trim(),
@@ -194,7 +192,7 @@ export default function OnboardingPage() {
         description: String(draft.description || '').trim() || null,
         category: draft.category,
         icon: draft.icon,
-        images: draft.images.length ? draft.images : [],
+        images,
         is_available: true,
       }).select()
       if (inErr) throw new Error(inErr.message)
@@ -207,7 +205,7 @@ export default function OnboardingPage() {
           stock,
           category: draft.category,
           icon: draft.icon,
-          images: draft.images,
+          images,
         },
         ...prev,
       ])
@@ -468,7 +466,7 @@ export default function OnboardingPage() {
                       <>
                         <div style={styles.photoThumbs}>
                           {draft.images.map((img, i) => (
-                            <img key={i} src={img} alt={`photo ${i + 1}`} style={styles.photoThumb} onClick={(e) => { e.stopPropagation(); setDraft((d) => ({ ...d, images: d.images.filter((_, j) => j !== i) })) }} />
+                            <img key={i} src={img} alt={`photo ${i + 1}`} style={styles.photoThumb} onClick={(e) => { e.stopPropagation(); setDraft((d) => ({ ...d, images: d.images.filter((_, j) => j !== i), files: (d.files || []).filter((_, j) => j !== i) })) }} />
                           ))}
                         </div>
                         <span style={styles.photoAddSmall}>＋ Add / edit photos</span>

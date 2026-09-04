@@ -10,6 +10,7 @@ import { MARKET_CATEGORIES, PRODUCT_ART } from '@/lib/categories'
 import { KEJETIA_CENTER } from '@/lib/map-geo'
 import { stockCount, stockLabel, discountPct } from '@/lib/products'
 import { Icon, iconNameFor } from '@/components/icons'
+import { uploadProductImages, readMockImages } from '@/lib/media'
 
 const emptyProduct = (storeCategory) => ({
   name: '',
@@ -20,6 +21,7 @@ const emptyProduct = (storeCategory) => ({
   description: '',
   icon: 'shopping-bag',
   images: [],
+  files: [],
 })
 
 export default function SellerDashboard() {
@@ -85,25 +87,14 @@ export default function SellerDashboard() {
     setError('')
   }
 
-  const readFiles = (fileList) => {
-    const files = Array.from(fileList || []).slice(0, 3)
-    return Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve) => {
-            if (file.size > 1.5 * 1024 * 1024) return resolve(null)
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.onerror = () => resolve(null)
-            reader.readAsDataURL(file)
-          })
-      )
-    ).then((results) => results.filter(Boolean))
-  }
-
   const onPhotos = async (fileList) => {
-    const images = await readFiles(fileList)
-    setDraft((d) => ({ ...d, images: [...d.images, ...images].slice(0, 3) }))
+    const files = Array.from(fileList || []).slice(0, 3)
+    const previews = await readMockImages(files)
+    setDraft((d) => ({
+      ...d,
+      files: [...(d.files || []), ...files].slice(0, 3),
+      images: [...d.images, ...previews].slice(0, 3),
+    }))
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -145,6 +136,13 @@ export default function SellerDashboard() {
     setSavingProduct(true)
     setError('')
     const sb = getSupabase()
+    // Real mode: upload the selected files to Storage first; the product row
+    // stores the public URLs. Mock mode: drafts are already data URLs.
+    let images = draft.images.length ? draft.images : []
+    if (draft.files && draft.files.length) {
+      const uploaded = await uploadProductImages(draft.files, store.id)
+      if (uploaded.length) images = uploaded
+    }
     const { data: row, error: err } = await sb.from('products').insert({
       store_id: store.id,
       name: draft.name.trim(),
@@ -154,7 +152,7 @@ export default function SellerDashboard() {
       description: String(draft.description || '').trim() || null,
       category: draft.category,
       icon: draft.icon,
-      images: draft.images.length ? draft.images : [],
+      images,
       is_available: true,
     }).select()
     setSavingProduct(false)
@@ -329,7 +327,7 @@ export default function SellerDashboard() {
                             <div style={styles.photoThumbs}>
                               {draft.images.map((img, i) => (
                                 <img key={i} src={img} alt={`photo ${i + 1}`} style={styles.photoThumb}
-                                  onClick={(e) => { e.stopPropagation(); setDraft((d) => ({ ...d, images: d.images.filter((_, j) => j !== i) })) }} />
+                                  onClick={(e) => { e.stopPropagation(); setDraft((d) => ({ ...d, images: d.images.filter((_, j) => j !== i), files: (d.files || []).filter((_, j) => j !== i) })) }} />
                               ))}
                             </div>
                             <span style={styles.photoAddSmall}>＋ Add / edit photos</span>
