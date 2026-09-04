@@ -9,6 +9,128 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ==========================================================
+   Boot splash — logo intro shown on first open of the app.
+   ========================================================== */
+.ko-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(206, 17, 38, 0.16), transparent 55%),
+    radial-gradient(120% 100% at 50% 100%, rgba(13, 124, 62, 0.22), transparent 60%),
+    var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.55s ease, visibility 0.55s ease;
+  overflow: hidden;
+}
+
+.ko-splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transform: translateY(-4px);
+}
+
+.ko-splash-logo {
+  width: min(300px, 76vw);
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: scale(0.84) translateY(16px);
+  filter: blur(8px);
+  animation: ko-splash-pop 1.05s cubic-bezier(0.2, 0.9, 0.25, 1.15) forwards;
+}
+
+@keyframes ko-splash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.84) translateY(16px);
+    filter: blur(8px);
+  }
+  62% {
+    opacity: 1;
+    transform: scale(1.045) translateY(-3px);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+.ko-splash-line {
+  width: min(300px, 76vw);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #f0d25b, transparent);
+  opacity: 0;
+  transform: scaleX(0.15);
+  animation: ko-splash-line 0.9s 0.55s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes ko-splash-line {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.ko-splash-tag {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 4.5px;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: ko-splash-fade 0.8s 0.95s ease forwards;
+}
+
+.ko-splash-sub {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  opacity: 0;
+  animation: ko-splash-fade 0.8s 1.15s ease forwards;
+}
+
+@keyframes ko-splash-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ko-splash-exit {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ko-splash {
+    display: none;
+  }
+}
+
+
 ::selection {
   background: rgba(245, 158, 11, 0.3);
   color: var(--ink);

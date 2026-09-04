@@ -2,6 +2,7 @@ import './globals.css'
 import './motion.css'
 import { AuthProvider } from '@/context/auth-context'
 import PageTransition from '@/components/PageTransition'
+import SplashScreen from '@/components/SplashScreen'
 
 export const metadata = {
   title: 'KEJETIA ONLINE — Find Anything in Kejetia Market',
@@ -13,6 +14,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <AuthProvider>
+          <SplashScreen />
           <PageTransition>
             {children}
           </PageTransition>
