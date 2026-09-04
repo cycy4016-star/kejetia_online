@@ -17,7 +17,9 @@ import { routeInMarket, metersBetween } from '@/lib/kejetia-graph'
 import { isInMarket } from '@/lib/routing'
 
 // Free tile layers that require no API key.
-const STREETS_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+// Streets: OpenStreetMap standard tiles — CARTO's free tier now watermarks
+// anonymous tiles with "API KEY REQUIRED".
+const STREETS_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 const SATELLITE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 
 const DEFAULT_BASE = 'streets'
@@ -123,6 +125,7 @@ export default function LiveMap({
   center,
   zoom,
   showUserLocation = true,
+  autoLocate = false,
   showLandmarks = true,
   routes = null,
   navTrip = null,
@@ -247,9 +250,8 @@ export default function LiveMap({
         ], { opacity: 1 })
 
         const streets = L.tileLayer(STREETS_URL, {
-          maxZoom: 20,
-          subdomains: 'abcd',
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         })
 
         const satellite = L.tileLayer(SATELLITE_URL, {
@@ -363,6 +365,98 @@ export default function LiveMap({
         new FullscreenControl().addTo(map)
 
         // ── Locate me ──
+        let locating = false
+        let locateTimer = null
+
+        // One-shot locate: used by the locate button and auto-locate.
+        const locateOnce = (btn) => {
+          if (locating) return
+          if (typeof navigator === 'undefined' || !navigator.geolocation) {
+            showNotice('Location is not supported by this browser.')
+            return
+          }
+          locating = true
+          if (btn) btn.classList.add('locating')
+          locateTimer = setTimeout(() => {
+            locateTimer = null
+            locating = false
+            if (btn) btn.classList.remove('locating')
+            showNotice('Location timed out — try again.')
+          }, 12000)
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (locateTimer) clearTimeout(locateTimer)
+              locateTimer = null
+              locating = false
+              if (btn) btn.classList.remove('locating')
+              const userLat = pos.coords.latitude
+              const userLng = pos.coords.longitude
+              placeUserMarker(L, userLat, userLng)
+
+              const dist = metersBetween(userLat, userLng, KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
+              setUserLocation({ lat: userLat, lng: userLng })
+              setDistanceFromMarket(dist)
+              setRemoteBannerDismissed(false)
+
+              if (dist > 50000) {
+                // Remote user: show BOTH locations
+                const userLatLng = L.latLng(userLat, userLng)
+                const marketLatLng = L.latLng(KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
+                const bounds = L.latLngBounds([userLatLng, marketLatLng]).pad(0.15)
+                map.fitBounds(bounds, { duration: 1.2, easeLinearity: 0.25, maxZoom: 8 })
+
+                if (distanceLineRef.current) map.removeLayer(distanceLineRef.current)
+                distanceLineRef.current = L.polyline(
+                  [[userLat, userLng], [KEJETIA_CENTER.lat, KEJETIA_CENTER.lng]],
+                  { color: '#1a73e8', weight: 2, dashArray: '8, 8', opacity: 0.6 }
+                ).addTo(map)
+
+                if (remoteLabelRef.current) map.removeLayer(remoteLabelRef.current)
+                const midLat = (userLat + KEJETIA_CENTER.lat) / 2
+                const midLng = (userLng + KEJETIA_CENTER.lng) / 2
+                const km = (dist / 1000).toFixed(0)
+                remoteLabelRef.current = L.marker([midLat, midLng], {
+                  icon: L.divIcon({
+                    className: 'lm-distance-label',
+                    html: `<div class="lm-distance-badge">${km} km</div>`,
+                    iconSize: [80, 28],
+                    iconAnchor: [40, 14],
+                  }),
+                  interactive: false,
+                }).addTo(map)
+
+                showNotice(`You are about ${km} km from Kejetia Market`)
+              } else if (dist > 10000) {
+                map.flyTo([userLat, userLng], Math.max(map.getZoom(), 12), {
+                  duration: 0.8,
+                  easeLinearity: 0.25,
+                })
+                const km = (dist / 1000).toFixed(1)
+                showNotice(`You are ${km} km from Kejetia Market`)
+              } else {
+                map.flyTo([userLat, userLng], Math.max(map.getZoom(), 16), {
+                  duration: 0.8,
+                  easeLinearity: 0.25,
+                })
+                if (distanceLineRef.current) { map.removeLayer(distanceLineRef.current); distanceLineRef.current = null }
+                if (remoteLabelRef.current) { map.removeLayer(remoteLabelRef.current); remoteLabelRef.current = null }
+              }
+            },
+            (err) => {
+              if (locateTimer) clearTimeout(locateTimer)
+              locateTimer = null
+              locating = false
+              if (btn) btn.classList.remove('locating')
+              if (err && err.code === 1) {
+                showNotice('Location blocked — allow location access in your browser to use this.')
+              } else {
+                showNotice('Could not find your location — try again.')
+              }
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+          )
+        }
+
         const LocateControl = L.Control.extend({
           options: { position: 'bottomright' },
           onAdd() {
@@ -371,99 +465,22 @@ export default function LiveMap({
             btn.title = 'Find my location'
             btn.setAttribute('aria-label', 'Find my location')
             L.DomEvent.disableClickPropagation(btn)
-            let locating = false
-            let locateTimer = null
-            L.DomEvent.on(btn, 'click', () => {
-              if (locating) return
-              if (typeof navigator === 'undefined' || !navigator.geolocation) {
-                showNotice('Location is not supported by this browser.')
-                return
-              }
-              locating = true
-              btn.classList.add('locating')
-              locateTimer = setTimeout(() => {
-                locateTimer = null
-                locating = false
-                btn.classList.remove('locating')
-                showNotice('Location timed out — try again.')
-              }, 12000)
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  if (locateTimer) clearTimeout(locateTimer)
-                  locateTimer = null
-                  locating = false
-                  btn.classList.remove('locating')
-                  const userLat = pos.coords.latitude
-                  const userLng = pos.coords.longitude
-                  placeUserMarker(L, userLat, userLng)
-
-                  const dist = metersBetween(userLat, userLng, KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
-                  setUserLocation({ lat: userLat, lng: userLng })
-                  setDistanceFromMarket(dist)
-                  setRemoteBannerDismissed(false)
-
-                  if (dist > 50000) {
-                    // Remote user: show BOTH locations
-                    const userLatLng = L.latLng(userLat, userLng)
-                    const marketLatLng = L.latLng(KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
-                    const bounds = L.latLngBounds([userLatLng, marketLatLng]).pad(0.15)
-                    map.fitBounds(bounds, { duration: 1.2, easeLinearity: 0.25, maxZoom: 8 })
-
-                    if (distanceLineRef.current) map.removeLayer(distanceLineRef.current)
-                    distanceLineRef.current = L.polyline(
-                      [[userLat, userLng], [KEJETIA_CENTER.lat, KEJETIA_CENTER.lng]],
-                      { color: '#1a73e8', weight: 2, dashArray: '8, 8', opacity: 0.6 }
-                    ).addTo(map)
-
-                    if (remoteLabelRef.current) map.removeLayer(remoteLabelRef.current)
-                    const midLat = (userLat + KEJETIA_CENTER.lat) / 2
-                    const midLng = (userLng + KEJETIA_CENTER.lng) / 2
-                    const km = (dist / 1000).toFixed(0)
-                    remoteLabelRef.current = L.marker([midLat, midLng], {
-                      icon: L.divIcon({
-                        className: 'lm-distance-label',
-                        html: `<div class="lm-distance-badge">${km} km</div>`,
-                        iconSize: [80, 28],
-                        iconAnchor: [40, 14],
-                      }),
-                      interactive: false,
-                    }).addTo(map)
-
-                    showNotice(`You are about ${km} km from Kejetia Market`)
-                  } else if (dist > 10000) {
-                    map.flyTo([userLat, userLng], Math.max(map.getZoom(), 12), {
-                      duration: 0.8,
-                      easeLinearity: 0.25,
-                    })
-                    const km = (dist / 1000).toFixed(1)
-                    showNotice(`You are ${km} km from Kejetia Market`)
-                  } else {
-                    map.flyTo([userLat, userLng], Math.max(map.getZoom(), 16), {
-                      duration: 0.8,
-                      easeLinearity: 0.25,
-                    })
-                    if (distanceLineRef.current) { map.removeLayer(distanceLineRef.current); distanceLineRef.current = null }
-                    if (remoteLabelRef.current) { map.removeLayer(remoteLabelRef.current); remoteLabelRef.current = null }
-                  }
-                },
-                (err) => {
-                  if (locateTimer) clearTimeout(locateTimer)
-                  locateTimer = null
-                  locating = false
-                  btn.classList.remove('locating')
-                  if (err && err.code === 1) {
-                    showNotice('Location blocked — allow location access in your browser to use this.')
-                  } else {
-                    showNotice('Could not find your location — try again.')
-                  }
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-              )
-            })
+            L.DomEvent.on(btn, 'click', () => locateOnce(btn))
             return btn
           },
         })
         new LocateControl().addTo(map)
+
+        // ── Auto-locate on mount (only when permission was already granted) ──
+        if (autoLocate && typeof navigator !== 'undefined' && navigator.geolocation) {
+          const tryAutoLocate = () => {
+            if (!navigator.permissions || typeof navigator.permissions.query !== 'function') return
+            navigator.permissions.query({ name: 'geolocation' })
+              .then((status) => { if (status.state === 'granted') locateOnce(null) })
+              .catch(() => {})
+          }
+          tryAutoLocate()
+        }
 
         // ── Layer pill (Map | Satellite | Kejetia), top right ──
         const LayerControl = L.Control.extend({

@@ -487,7 +487,7 @@ export default function StorePage() {
                 zoom={16}
                 selectedStoreId={store.id}
                 showLandmarks={false}
-                showUserLocation={false}
+                showUserLocation
               />
             </div>
             <p style={styles.mapHint}>

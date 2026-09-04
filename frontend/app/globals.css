@@ -2594,6 +2594,12 @@ input, textarea {
   min-height: 460px;
 }
 
+/* The map must have a definite height (not just min-height) so the
+   inner Leaflet container's height:100% can resolve. */
+.ko-map-wrap {
+  height: 100%;
+}
+
 @media (max-width: 860px) {
   .ko-map-layout {
     flex-direction: column;
@@ -2605,6 +2611,12 @@ input, textarea {
   }
   .ko-map-wrap {
     min-height: 380px;
+    height: 460px;
+  }
+  /* Inline height:100% on the map wrapper can't resolve against a
+     min-height-sized parent, so pin it directly on mobile. */
+  .ko-map-wrap .lm-map-wrap {
+    height: 460px !important;
   }
 }
 

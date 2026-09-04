@@ -189,7 +189,7 @@ function SearchContent() {
       <div className="container" style={styles.content}>
         {loading && <p style={styles.status}>Searching…</p>}
 
-        {!loading && stores.length === 0 && products.length === 0 && (
+        {!loading && view === 'grid' && stores.length === 0 && products.length === 0 && (
           <div style={styles.statusBox}>
             <Icon name="search" size={42} color="var(--muted-light)" />
             <p style={styles.statusText}>
@@ -292,10 +292,15 @@ function SearchContent() {
         )}
 
         {/* MAP VIEW */}
-        {view === 'map' && !loading && stores.length > 0 && (
+        {view === 'map' && !loading && (
           <div className="ko-map-layout">
             <div className="ko-map-list" style={styles.mapList}>
               <h3 style={styles.mapListTitle}>{stores.length} store{stores.length === 1 ? '' : 's'} on the map</h3>
+              {stores.length === 0 && (
+                <p style={styles.mapListEmpty}>
+                  No stores on the map yet — explore the market below. Sellers appear here when they join.
+                </p>
+              )}
               {stores.map((store) => (
                 <div
                   key={store.id}
@@ -324,6 +329,7 @@ function SearchContent() {
                 onStoreClick={setSelectedStore}
                 height="100%"
                 selectedStoreId={selectedStore?.id}
+                autoLocate
               />
               {selectedStore && (
                 <div style={styles.mapPopup}>
@@ -467,6 +473,7 @@ const styles = {
   mapLayout: {},
   mapList: { width: 340, overflowY: 'auto', flexShrink: 0, paddingRight: 4 },
   mapListTitle: { fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)', marginBottom: 12 },
+  mapListEmpty: { fontSize: 13.5, lineHeight: 1.55, color: 'var(--muted)', background: 'var(--bg-soft, #f8fafc)', border: '1px dashed var(--border, #e2e8f0)', borderRadius: 12, padding: '14px 16px' },
   mapStore: {
     display: 'flex', gap: 12, alignItems: 'center', padding: 12, background: '#fff',
     border: '1px solid var(--border)', borderRadius: 14, marginBottom: 8, cursor: 'pointer',
