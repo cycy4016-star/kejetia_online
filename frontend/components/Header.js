@@ -18,6 +18,7 @@ export default function Header({ user, profile, onSignOut }) {
         <nav style={styles.nav} className="ko-header-nav" aria-label="Primary">
           <a href="/" style={styles.navLink}>Home</a>
           <a href={storeUrl} style={styles.navLink}>Stores</a>
+          <a href="/directions" style={styles.navLink}>Directions</a>
           {user && (
             <a href={dashUrl} style={styles.navLink}>
               {profile?.role === 'seller' ? 'Dashboard' : 'Messages'}
@@ -58,6 +59,7 @@ export default function Header({ user, profile, onSignOut }) {
       <div style={styles.mobileMenu} className={`ko-header-menu${open ? ' open' : ''}`}>
           <a href="/" style={styles.mobileLink} onClick={() => setOpen(false)}>Home</a>
           <a href={storeUrl} style={styles.mobileLink} onClick={() => setOpen(false)}>Stores</a>
+          <a href="/directions" style={styles.mobileLink} onClick={() => setOpen(false)}>Directions</a>
           {user ? (
             <>
               <a href={dashUrl} style={styles.mobileLink} onClick={() => setOpen(false)}>

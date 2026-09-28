@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
 import { useAuth } from '@/context/auth-context'
+import { useLiveLocations } from '@/hooks/useLiveLocations'
 import Header from '@/components/Header'
 import LiveMap from '@/components/maps/LiveMap'
 import { MARKET_CATEGORIES } from '@/lib/categories'
 import { PRODUCT_SORTS, sortProducts, stockLabel, isOutOfStock, discountPct } from '@/lib/products'
 import { fetchStoreReviews, addStoreReview, timeAgo } from '@/lib/reviews'
+import { directionsUrl } from '@/lib/directions'
 import { Icon, iconNameFor } from '@/components/icons'
 
 const TABS = [
@@ -36,34 +38,54 @@ export default function StorePage() {
   const [submittingReview, setSubmittingReview] = useState(false)
   const [reviewMsg, setReviewMsg] = useState(null) // { ok: boolean, text: string }
 
+  // Live "users on the map" dots — only while the map tab is open.
+  const { locations: liveLocations } = useLiveLocations({ enabled: tab === 'map' })
+
   const isOwner = Boolean(user && store && store.owner_id && store.owner_id === user.id)
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      const supabase = getSupabase()
-      if (!supabase) return
-      const { data: storeData } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('id', id)
-        .single()
-      setStore(storeData)
+  const fetchAll = useCallback(async () => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    const { data: storeData } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', id)
+      .single()
+    setStore(storeData)
 
-      if (storeData) {
-        const sb = getSupabase()
-        if (!sb) return
-        const [{ data: productData }, reviewData] = await Promise.all([
-          sb.from('products').select('*').eq('store_id', storeData.id).eq('is_available', true),
-          fetchStoreReviews(storeData.id),
-        ])
-        setProducts(productData || [])
-        setReviews(reviewData || [])
-      }
-
-      setLoading(false)
+    if (storeData) {
+      const sb = getSupabase()
+      if (!sb) return
+      const [{ data: productData }, reviewData] = await Promise.all([
+        sb.from('products').select('*').eq('store_id', storeData.id).eq('is_available', true),
+        fetchStoreReviews(storeData.id),
+      ])
+      setProducts(productData || [])
+      setReviews(reviewData || [])
     }
-    fetchAll()
+
+    setLoading(false)
   }, [id])
+
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
+
+  // Live sync — product/stock edits and new reviews (which move the store's
+  // rating aggregate) show up without a refresh while the page is open.
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    const channel = supabase
+      .channel(`store-live-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores', filter: `id=eq.${id}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products', filter: `store_id=eq.${id}` }, fetchAll)
+      .subscribe()
+    return () => {
+      const sb = getSupabase()
+      if (sb) sb.removeChannel(channel)
+    }
+  }, [id, fetchAll])
 
   const submitReview = async (e) => {
     e.preventDefault()
@@ -99,7 +121,10 @@ export default function StorePage() {
 
   const shareOnWhatsApp = () => {
     if (!store) return
-    const text = `Check out ${store.name} on KejetiaOnline!\n${store.address}\nPhone: ${store.phone}\nMap: https://maps.google.com/?q=${store.latitude},${store.longitude}`
+    // Share the store inside the platform (open directions in-app) — no
+    // third-party map links.
+    const appUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/store/${store.id}`
+    const text = `Check out ${store.name} on KejetiaOnline!\n${store.address}\nPhone: ${store.phone}\n${appUrl}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -267,6 +292,13 @@ export default function StorePage() {
                 <Icon name="chat" size={15} /> Chat with Seller
               </a>
             )}
+            <a
+              className="ko-btn ko-btn-dark"
+              href={directionsUrl({ name: store.name, lat: store.latitude, lng: store.longitude })}
+              style={{ ...styles.chatBtn, background: 'var(--accent-700)' }}
+            >
+              <Icon name="map" size={15} /> Directions
+            </a>
           </div>
         </div>
 
@@ -482,6 +514,7 @@ export default function StorePage() {
             <div style={styles.mapContainer}>
               <LiveMap
                 stores={[store]}
+                userLocations={liveLocations}
                 height={360}
                 center={{ lat: store.latitude, lng: store.longitude }}
                 zoom={16}
@@ -493,6 +526,12 @@ export default function StorePage() {
             <p style={styles.mapHint}>
               <Icon name="map-pin" size={13} color="var(--muted)" /> {store.address || 'Kejetia Market, Kumasi'}
             </p>
+            <a
+              href={directionsUrl({ name: store.name, lat: store.latitude, lng: store.longitude })}
+              style={styles.mapDirLink}
+            >
+              <Icon name="map" size={14} /> Get directions to this store →
+            </a>
           </div>
         )}
       </div>
@@ -802,6 +841,11 @@ const styles = {
   mapHint: {
     fontSize: 13.5, color: 'var(--muted)', marginTop: 12,
     display: 'inline-flex', alignItems: 'center', gap: 6,
+  },
+  mapDirLink: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    marginTop: 10, fontSize: 13.5, fontWeight: 700,
+    color: 'var(--accent-700)', textDecoration: 'none',
   },
 
   /* Reviews */

@@ -3,7 +3,9 @@
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
+import { directionsUrl } from '@/lib/directions'
 import { useAuth } from '@/context/auth-context'
+import { useLiveLocations } from '@/hooks/useLiveLocations'
 import Header from '@/components/Header'
 import LiveMap from '@/components/maps/LiveMap'
 import AddLandmarkModal from '@/components/AddLandmarkModal'
@@ -38,6 +40,9 @@ function SearchContent() {
   const [loading, setLoading] = useState(false)
   const [catFilter, setCatFilter] = useState('')
   const [sort, setSort] = useState('featured')
+
+  // Live "users on the map" dots — active only while the map view is open.
+  const { locations: liveLocations } = useLiveLocations({ enabled: view === 'map' })
 
   const applyFilter = useCallback((term, storeRows, productRows, cat) => {
     const q = (term || '').trim().toLowerCase()
@@ -77,25 +82,48 @@ function SearchContent() {
     setProducts(filteredProducts)
   }, [])
 
+  // Full marketplace fetch — shared by the initial load and the live
+  // subscription below (so stores/products/landmarks added by any user
+  // appear without a manual refresh).
+  const fetchAll = useCallback(async () => {
+    const sb = getSupabase()
+    if (!sb) return
+    const [{ data: storeRows }, { data: productRows }, { data: landmarkRows }] = await Promise.all([
+      sb.from('stores').select('*').eq('is_active', true).order('created_at', { ascending: false }),
+      sb.from('products').select('*').eq('is_available', true),
+      sb.from('landmarks').select('*').order('created_at', { ascending: false }),
+    ])
+    setAllStores(storeRows || [])
+    setAllProducts(productRows || [])
+    setLandmarksWithStores(storeRows || [], landmarkRows || [])
+  }, [])
+
   useEffect(() => {
     const q = searchParams.get('q') || ''
     setQuery(q)
     setLoading(true)
-    const run = async () => {
-      const sb = getSupabase()
-      if (!sb) { setLoading(false); return }
-      const [{ data: storeRows }, { data: productRows }, { data: landmarkRows }] = await Promise.all([
-        sb.from('stores').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-        sb.from('products').select('*').eq('is_available', true),
-        sb.from('landmarks').select('*').order('created_at', { ascending: false }),
-      ])
-      setAllStores(storeRows || [])
-      setAllProducts(productRows || [])
-      setLandmarksWithStores(storeRows || [], landmarkRows || [])
+    ;(async () => {
+      await fetchAll()
       setLoading(false)
+    })()
+  }, [searchParams, fetchAll])
+
+  // Live sync — marketplace tables pushed by other users (real mode: Supabase
+  // Realtime; local mode: the mock cross-tab broadcast) refresh the page live.
+  useEffect(() => {
+    const sb = getSupabase()
+    if (!sb) return
+    const channel = sb
+      .channel('search-marketplace-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'landmarks' }, fetchAll)
+      .subscribe()
+    return () => {
+      const s2 = getSupabase()
+      if (s2) s2.removeChannel(channel)
     }
-    run()
-  }, [searchParams])
+  }, [fetchAll])
 
   const setLandmarksWithStores = (storeRows, landmarkRows) => {
     const storeById = Object.fromEntries((storeRows || []).map((s) => [s.id, s]))
@@ -131,7 +159,8 @@ function SearchContent() {
   }
 
   const getDirections = (store) => {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`, '_blank')
+    // Navigate inside the platform — road + market walking route on /directions.
+    router.push(directionsUrl({ name: store.name, lat: store.latitude, lng: store.longitude }))
   }
 
   const dealsMode = query.trim().toLowerCase() === 'deals'
@@ -406,6 +435,7 @@ function SearchContent() {
               <LiveMap
                 stores={stores}
                 landmarks={allLandmarks}
+                userLocations={liveLocations}
                 onStoreClick={setSelectedStore}
                 height="100%"
                 selectedStoreId={selectedStore?.id}

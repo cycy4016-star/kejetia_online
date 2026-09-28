@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
 import { useAuth } from '@/context/auth-context'
@@ -12,48 +12,65 @@ export default function ChatListPage() {
   const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const fetchConversations = useCallback(async () => {
+    if (!user) return
+    if (profile?.role === 'seller') {
+      // Seller: conversations for stores they own
+      const supabase = getSupabase()
+      if (!supabase) return
+      const { data: stores } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('owner_id', user.id)
+
+      if (stores && stores.length > 0) {
+        const storeIds = stores.map(s => s.id)
+        const { data: convs } = await supabase
+          .from('conversations')
+          .select('*, stores(name, phone), buyer:profiles!buyer_id(full_name)')
+          .in('store_id', storeIds)
+          .order('created_at', { ascending: false })
+        setConversations(convs || [])
+      } else {
+        setConversations([])
+      }
+    } else {
+      // Buyer: their conversations
+      const supabase = getSupabase()
+      if (!supabase) return
+      const { data: convs } = await supabase
+        .from('conversations')
+        .select('*, stores(name, phone, image_url, latitude, longitude)')
+        .eq('buyer_id', user.id)
+        .order('created_at', { ascending: false })
+      setConversations(convs || [])
+    }
+    setLoading(false)
+  }, [user, profile])
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/auth/login')
       return
     }
-    if (!user) return
-
-    const fetchConversations = async () => {
-      if (profile?.role === 'seller') {
-        // Seller: conversations for stores they own
-        const supabase = getSupabase()
-        if (!supabase) return
-        const { data: stores } = await supabase
-          .from('stores')
-          .select('id')
-          .eq('owner_id', user.id)
-
-        if (stores && stores.length > 0) {
-          const storeIds = stores.map(s => s.id)
-          const { data: convs } = await supabase
-            .from('conversations')
-            .select('*, stores(name, phone), buyer:profiles!buyer_id(full_name)')
-            .in('store_id', storeIds)
-            .order('created_at', { ascending: false })
-          setConversations(convs || [])
-        }
-      } else {
-        // Buyer: their conversations
-        const supabase = getSupabase()
-        if (!supabase) return
-        const { data: convs } = await supabase
-          .from('conversations')
-          .select('*, stores(name, phone, image_url, latitude, longitude)')
-          .eq('buyer_id', user.id)
-          .order('created_at', { ascending: false })
-        setConversations(convs || [])
-      }
-      setLoading(false)
-    }
-
     fetchConversations()
-  }, [user, authLoading, profile])
+  }, [authLoading, user, fetchConversations, router])
+
+  // Live sync — when a buyer starts a conversation, the seller's message list
+  // updates without waiting for a refresh.
+  useEffect(() => {
+    if (!user) return
+    const supabase = getSupabase()
+    if (!supabase) return
+    const channel = supabase
+      .channel('chat-list-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, fetchConversations)
+      .subscribe()
+    return () => {
+      const sb = getSupabase()
+      if (sb) sb.removeChannel(channel)
+    }
+  }, [user, fetchConversations])
 
   if (authLoading || loading) {
     return <div style={styles.loading}><img src="/logo.svg" alt="Loading..." style={{ height: 32 }} /></div>

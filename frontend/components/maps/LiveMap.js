@@ -15,6 +15,12 @@ import {
 } from '@/lib/map-geo'
 import { routeInMarket, metersBetween } from '@/lib/kejetia-graph'
 import { isInMarket } from '@/lib/routing'
+import { directionsUrl } from '@/lib/directions'
+import { locateWithFallback, describeGeoError, GEO_MESSAGES } from '@/lib/geolocation'
+
+// Geolocation fixes rougher than this are treated as "approximate" — we
+// show the uncertainty instead of claiming exact distances/positions.
+const LOW_ACCURACY_M = 2000
 
 // Free tile layers that require no API key.
 // Streets: OpenStreetMap standard tiles — CARTO's free tier now watermarks
@@ -69,8 +75,7 @@ function placeCard(store) {
       ${store.phone ? `<div class="lm-place-phone">${store.phone}</div>` : ''}
       <div class="lm-place-actions">
         <a class="lm-place-btn lm-place-btn-primary"
-           href="https://www.google.com/maps/dir/?api=1&destination=${Number(store.latitude)},${Number(store.longitude)}"
-           target="_blank" rel="noreferrer">Directions</a>
+           href="${directionsUrl({ name: store.name, lat: store.latitude, lng: store.longitude })}">Directions</a>
         <a class="lm-place-btn" href="/store/${store.id}">View Store</a>
       </div>
     </div>
@@ -134,7 +139,7 @@ function landmarkCard(l) {
     ${l.notes ? `<p style="margin:5px 0 0;color:#5f6368;font-size:12.5px;line-height:1.5">${esc(l.notes)}</p>` : ''}
     <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
       ${storeLink}
-      <a href="https://www.google.com/maps/dir/?api=1&destination=${Number(l.latitude)},${Number(l.longitude)}" target="_blank" rel="noreferrer" style="margin-left:auto;padding:6px 12px;background:#1a73e8;color:#fff;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Directions</a>
+      <a href="${directionsUrl({ name: l.name, lat: l.latitude, lng: l.longitude })}" style="margin-left:auto;padding:6px 12px;background:#1a73e8;color:#fff;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">Directions</a>
     </div>
   </div>`
 }
@@ -167,6 +172,10 @@ export default function LiveMap({
   const landmarkMarkersRef = useRef([])
   const kejetiaMarkerRef = useRef(null)
   const userMarkerRef = useRef(null)
+  const userAccuracyRef = useRef(null)
+  // Once the user drags the "you are here" dot to correct a wrong fix, the
+  // GPS watcher stops overriding it until "Find my location" is used again.
+  const manualPositionRef = useRef(false)
   const selectedPinMarkerRef = useRef(null)
   const routeLayersRef = useRef([])
   const watcherRef = useRef(null)
@@ -180,6 +189,8 @@ export default function LiveMap({
   const [mapLoading, setMapLoading] = useState(true)
   const [mapError, setMapError] = useState(null)
   const [mapReady, setMapReady] = useState(false)
+  // Bumping this re-runs the one-time map initialisation (used by retry).
+  const [initNonce, setInitNonce] = useState(0)
   // ── Remote user state ──
   const [userLocation, setUserLocation] = useState(null)
   const [distanceFromMarket, setDistanceFromMarket] = useState(null)
@@ -302,9 +313,21 @@ export default function LiveMap({
           if (tilesLoading === 0) setMapLoading(false)
         })
 
-        const placeUserMarker = (LL, lat, lng) => {
+        // Place (or move) the "you are here" dot. When the browser reports an
+        // accuracy radius we draw it as a circle too, so a rough fix is
+        // visibly rough instead of looking like an exact pin. The dot is
+        // draggable: if the browser's fix is wrong, drag it to your real spot.
+        const placeUserMarker = (LL, lat, lng, accuracy, opts = {}) => {
+          const acc =
+            Number.isFinite(Number(accuracy)) && Number(accuracy) > 0
+              ? Number(accuracy)
+              : null
+          const manual = Boolean(opts.manual)
           if (userMarkerRef.current) {
             userMarkerRef.current.setLatLng([lat, lng])
+            userMarkerRef.current.setPopupContent(
+              `<div style="padding:2px 6px">You are here${manual ? ' <b>· set manually</b>' : ''}${acc ? ` · ±${Math.round(acc)} m` : ''}${!manual ? '<br><small style="color:#5f6368">Drag the blue dot to correct it</small>' : ''}</div>`
+            )
           } else {
             const icon = LL.divIcon({
               className: 'current-location-pin',
@@ -312,9 +335,52 @@ export default function LiveMap({
               iconSize: [28, 28],
               iconAnchor: [14, 14],
             })
-            userMarkerRef.current = LL.marker([lat, lng], { icon, zIndexOffset: 900 })
+            userMarkerRef.current = LL.marker([lat, lng], {
+              icon,
+              zIndexOffset: 900,
+              draggable: true,
+            })
               .addTo(map)
-              .bindPopup('<div style="padding:2px 6px">You are here</div>')
+              .bindPopup(
+                `<div style="padding:2px 6px">You are here${manual ? ' <b>· set manually</b>' : ''}${acc ? ` · ±${Math.round(acc)} m` : ''}${!manual ? '<br><small style="color:#5f6368">Drag the blue dot to correct it</small>' : ''}</div>`
+              )
+            // Drag-to-correct: the browser's geolocation can be wrong (IP
+            // fallback / no GPS). Let the user pin their real position.
+            userMarkerRef.current.on('dragend', () => {
+              const p = userMarkerRef.current.getLatLng()
+              manualPositionRef.current = true
+              if (watcherRef.current != null && navigator.geolocation) {
+                navigator.geolocation.clearWatch(watcherRef.current)
+                watcherRef.current = null
+              }
+              placeUserMarker(LL, p.lat, p.lng, 15, { manual: true })
+              const dist = metersBetween(p.lat, p.lng, KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
+              setUserLocation({ lat: p.lat, lng: p.lng, accuracy: 15 })
+              setDistanceFromMarket(dist)
+              setRemoteBannerDismissed(false)
+              if (distanceLineRef.current) { map.removeLayer(distanceLineRef.current); distanceLineRef.current = null }
+              if (remoteLabelRef.current) { map.removeLayer(remoteLabelRef.current); remoteLabelRef.current = null }
+              map.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 16), {
+                duration: 0.8,
+                easeLinearity: 0.25,
+              })
+              showNotice('Location set manually — drag the blue dot anytime to correct it.')
+            })
+          }
+
+          if (userAccuracyRef.current) {
+            userAccuracyRef.current.setLatLng([lat, lng])
+            if (acc) userAccuracyRef.current.setRadius(acc)
+          } else if (acc) {
+            userAccuracyRef.current = LL.circle([lat, lng], {
+              radius: acc,
+              color: '#1a73e8',
+              weight: 1,
+              opacity: 0.35,
+              fillColor: '#1a73e8',
+              fillOpacity: 0.08,
+              interactive: false,
+            }).addTo(map)
           }
         }
 
@@ -399,33 +465,67 @@ export default function LiveMap({
         const locateOnce = (btn) => {
           if (locating) return
           if (typeof navigator === 'undefined' || !navigator.geolocation) {
-            showNotice('Location is not supported by this browser.')
+            showNotice(GEO_MESSAGES.unavailable)
             return
           }
           locating = true
           if (btn) btn.classList.add('locating')
+          let settled = false
           locateTimer = setTimeout(() => {
+            if (settled) return
+            settled = true
             locateTimer = null
             locating = false
             if (btn) btn.classList.remove('locating')
-            showNotice('Location timed out — try again.')
-          }, 12000)
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
+            showNotice(GEO_MESSAGES.timeout)
+          }, 18000)
+          // Accurate fix first; if that fails (no GPS / OS location off), fall
+          // back to a coarse Wi‑Fi/IP fix — labelled approximate by its
+          // accuracy, never presented as exact.
+          locateWithFallback().then(
+            (loc) => {
+              if (settled) return
+              settled = true
               if (locateTimer) clearTimeout(locateTimer)
               locateTimer = null
               locating = false
               if (btn) btn.classList.remove('locating')
-              const userLat = pos.coords.latitude
-              const userLng = pos.coords.longitude
-              placeUserMarker(L, userLat, userLng)
+              // A real GPS fix replaces any manual correction; re-arm the
+              // live watcher if the user had dragged the dot earlier.
+              manualPositionRef.current = false
+              if (watcherRef.current == null) startFollowWatch()
+              const userLat = loc.lat
+              const userLng = loc.lng
+              placeUserMarker(L, userLat, userLng, loc.accuracy)
+              if (loc.fallback) {
+                showNotice('Could not get a precise fix — showing an approximate location. Turn on GPS (and be outdoors) for better accuracy.')
+              }
 
               const dist = metersBetween(userLat, userLng, KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
-              setUserLocation({ lat: userLat, lng: userLng })
-              setDistanceFromMarket(dist)
-              setRemoteBannerDismissed(false)
+              setUserLocation({ lat: userLat, lng: userLng, accuracy: loc.accuracy })
+              // A rough fix (e.g. IP-based fallback with GPS off) must not be
+              // presented as an exact position — show uncertainty instead of
+              // claiming a distance or drawing a line to the market.
+              const precise = loc.accuracy <= LOW_ACCURACY_M
+              if (precise) {
+                setDistanceFromMarket(dist)
+                setRemoteBannerDismissed(false)
+              } else {
+                setDistanceFromMarket(null)
+                setRemoteBannerDismissed(true)
+                if (distanceLineRef.current) { map.removeLayer(distanceLineRef.current); distanceLineRef.current = null }
+                if (remoteLabelRef.current) { map.removeLayer(remoteLabelRef.current); remoteLabelRef.current = null }
+                showNotice(
+                  `Location is only approximate (±${Math.round(loc.accuracy)} m). Turn on GPS (and be outdoors) for a precise fix.`
+                )
+              }
 
-              if (dist > 50000) {
+              if (!precise) {
+                map.flyTo([userLat, userLng], Math.max(map.getZoom(), 12), {
+                  duration: 0.8,
+                  easeLinearity: 0.25,
+                })
+              } else if (dist > 50000) {
                 // Remote user: show BOTH locations
                 const userLatLng = L.latLng(userLat, userLng)
                 const marketLatLng = L.latLng(KEJETIA_CENTER.lat, KEJETIA_CENTER.lng)
@@ -470,17 +570,14 @@ export default function LiveMap({
               }
             },
             (err) => {
+              if (settled) return
+              settled = true
               if (locateTimer) clearTimeout(locateTimer)
               locateTimer = null
               locating = false
               if (btn) btn.classList.remove('locating')
-              if (err && err.code === 1) {
-                showNotice('Location blocked — allow location access in your browser to use this.')
-              } else {
-                showNotice('Could not find your location — try again.')
-              }
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+              showNotice(describeGeoError(err))
+            }
           )
         }
 
@@ -574,7 +671,7 @@ export default function LiveMap({
                 `<div style="min-width:200px;padding:4px 0">
                    <strong>${l.name}</strong>
                    <p style="margin:4px 0;color:#5f6368;font-size:12px">${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</p>
-                   <a href="https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lng}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;padding:6px 14px;background:#1a73e8;color:#fff;border-radius:8px;font-size:12px;text-decoration:none">Directions</a>
+                   <a href="${directionsUrl({ name: l.name, lat: l.lat, lng: l.lng })}" style="display:inline-block;margin-top:6px;padding:6px 14px;background:#1a73e8;color:#fff;border-radius:8px;font-size:12px;text-decoration:none">Directions</a>
                  </div>`
               )
             landmarkMarkersRef.current.push(m)
@@ -583,14 +680,33 @@ export default function LiveMap({
           })
         }
 
-        // User location follow.
-        if (showUserLocation && navigator.geolocation && navigator.geolocation.watchPosition) {
+        // ── Follow the user's GPS position ──
+        // Re-runnable so "Find my location" can re-arm GPS after the user
+        // dragged the dot to a manual position.
+        const startFollowWatch = () => {
+          if (
+            !showUserLocation ||
+            typeof navigator === 'undefined' ||
+            !navigator.geolocation ||
+            !navigator.geolocation.watchPosition
+          ) return
+          if (watcherRef.current != null) return
           watcherRef.current = navigator.geolocation.watchPosition(
-            (pos) => placeUserMarker(L, pos.coords.latitude, pos.coords.longitude),
+            (pos) => {
+              // A manually-set dot stays put until GPS is re-requested.
+              if (manualPositionRef.current) return
+              placeUserMarker(
+                L,
+                pos.coords.latitude,
+                pos.coords.longitude,
+                pos.coords.accuracy
+              )
+            },
             () => console.warn('Geolocation unavailable or permission denied.'),
             { enableHighAccuracy: true, maximumAge: 30000, timeout: 10000 }
           )
         }
+        startFollowWatch()
 
         // Keep the map sized while toggling fullscreen.
         onFullscreenChange = () => {
@@ -642,20 +758,18 @@ export default function LiveMap({
         mapInstanceRef.current = null
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initNonce]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Retry handler ──
   const handleRetry = useCallback(() => {
+    // The error state unmounts the Leaflet container; bumping the nonce makes
+    // the init effect run again on a fresh container instead of leaving a
+    // permanently blank map.
     setMapError(null)
     setMapLoading(true)
     loadedRef.current = false
     setMapReady(false)
-    const el = containerRef.current
-    if (el) el.innerHTML = ''
-    setTimeout(() => {
-      setMapReady(false)
-      setMapLoading(true)
-    }, 100)
+    setInitNonce((n) => n + 1)
   }, [])
 
   // Keep the map sized to its container.
@@ -1148,11 +1262,14 @@ export default function LiveMap({
             </button>
             <a
               className="lm-remote-btn"
-              href={userLocation
-                ? `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${KEJETIA_CENTER.lat},${KEJETIA_CENTER.lng}`
-                : `https://www.google.com/maps/dir/?api=1&destination=${KEJETIA_CENTER.lat},${KEJETIA_CENTER.lng}`}
-              target="_blank"
-              rel="noreferrer"
+              href={directionsUrl({
+                name: 'Kejetia Market',
+                lat: KEJETIA_CENTER.lat,
+                lng: KEJETIA_CENTER.lng,
+                origin: userLocation ? 'My location' : undefined,
+                originLat: userLocation?.lat,
+                originLng: userLocation?.lng,
+              })}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
               Directions

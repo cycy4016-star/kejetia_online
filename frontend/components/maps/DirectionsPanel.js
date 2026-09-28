@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { computeTrip, geocode, formatMeters } from '@/lib/routing'
 import { LANDMARKS } from '@/lib/map-geo'
+import { locateWithFallback, describeGeoError } from '@/lib/geolocation'
 
 // Resolve free text against known places first (stores + market landmarks),
 // falling back to Nominatim geocoding only for real-world addresses. This
@@ -48,20 +49,16 @@ const resolvePoint = async (text, extra) => {
   return g
 }
 
-const locate = () =>
-  new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('Location is not supported by this browser.'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, label: 'My location' }),
-      () => reject(new Error('Location blocked — allow location access to use "My location".')),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-    )
-  })
+const locate = async () => {
+  try {
+    const loc = await locateWithFallback()
+    return { lat: loc.lat, lng: loc.lng, label: 'My location', accuracy: loc.accuracy }
+  } catch (err) {
+    throw new Error(describeGeoError(err))
+  }
+}
 
-export default function DirectionsPanel({ store, stores = [], onClose, onTrip, onStart }) {
+export default function DirectionsPanel({ store, stores = [], onClose, onTrip, onStart, onDestTextChange }) {
   const [originText, setOriginText] = useState('My location')
   const [destText, setDestText] = useState(store?.name || '')
   const [mode, setMode] = useState('driving')
@@ -159,7 +156,10 @@ export default function DirectionsPanel({ store, stores = [], onClose, onTrip, o
             <span className="gm-dot gm-dot-red" />
             <input
               value={destText}
-              onChange={(e) => setDestText(e.target.value)}
+              onChange={(e) => {
+                setDestText(e.target.value)
+                onDestTextChange?.(e.target.value)
+              }}
               placeholder="Choose destination"
               aria-label="Destination"
             />

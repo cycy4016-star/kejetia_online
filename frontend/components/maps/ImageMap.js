@@ -11,6 +11,7 @@ import {
   latLngToImage,
   imageToLatLng,
 } from '@/lib/map-geo'
+import { directionsUrl } from '@/lib/directions'
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 8
@@ -358,9 +359,7 @@ export default function ImageMap({
             {activeLandmark.lat.toFixed(5)}, {activeLandmark.lng.toFixed(5)}
           </p>
           <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${activeLandmark.lat},${activeLandmark.lng}`}
-            target="_blank"
-            rel="noreferrer"
+            href={directionsUrl({ name: activeLandmark.name, lat: activeLandmark.lat, lng: activeLandmark.lng })}
             style={styles.popupLink}
           >
             🗺️ Directions

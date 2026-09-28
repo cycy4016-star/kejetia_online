@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { KEJETIA_CENTER } from '@/lib/map-geo'
 
-const KEJETIA_CENTER = { lat: 6.6895, lng: -1.6232 }
 const DEFAULT_CENTER = KEJETIA_CENTER
 
 export default function StoreMap({ stores, onStoreClick, height = '100vh', center, zoom = 16, selectedStoreId }) {
@@ -62,7 +62,7 @@ export default function StoreMap({ stores, onStoreClick, height = '100vh', cente
         zoom,
       })
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map)

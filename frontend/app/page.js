@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
 import { useAuth } from '@/context/auth-context'
@@ -31,19 +31,37 @@ export default function HomePage() {
   const [stores, setStores] = useState([])
   const [products, setProducts] = useState([])
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      const supabase = getSupabase()
-      if (!supabase) return
-      const [{ data: storeRows }, { data: productRows }] = await Promise.all([
-        supabase.from('stores').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-        supabase.from('products').select('*').eq('is_available', true),
-      ])
-      setStores(storeRows || [])
-      setProducts(productRows || [])
-    }
-    fetchAll()
+  const fetchAll = useCallback(async () => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    const [{ data: storeRows }, { data: productRows }] = await Promise.all([
+      supabase.from('stores').select('*').eq('is_active', true).order('created_at', { ascending: false }),
+      supabase.from('products').select('*').eq('is_available', true),
+    ])
+    setStores(storeRows || [])
+    setProducts(productRows || [])
   }, [])
+
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
+
+  // Live sync — stores and products created / edited by ANY user show up on
+  // the homepage without a refresh. Works against Supabase Realtime in real
+  // mode and the cross-tab mock broadcast in local mode.
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+    const channel = supabase
+      .channel('home-marketplace-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchAll)
+      .subscribe()
+    return () => {
+      const sb = getSupabase()
+      if (sb) sb.removeChannel(channel)
+    }
+  }, [fetchAll])
 
   if (loading) {
     return (

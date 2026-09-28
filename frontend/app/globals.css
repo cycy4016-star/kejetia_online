@@ -2890,3 +2890,34 @@ body {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ============================================ */
+/* Directions page — in-app navigation          */
+/* ============================================ */
+
+.ko-dir {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .ko-dir {
+    flex-direction: column;
+  }
+  .ko-dir-panel {
+    width: 100% !important;
+    max-height: 44vh;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+  }
+  .ko-dir-map {
+    flex: 1;
+    min-height: 420px;
+    height: 460px;
+  }
+  /* height:100% on the Leaflet wrapper can't resolve against a
+     min-height-sized parent — pin it directly (same as the search page). */
+  .ko-dir-map .lm-map-wrap {
+    height: 460px !important;
+  }
+}

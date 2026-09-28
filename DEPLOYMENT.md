@@ -36,9 +36,21 @@ In Supabase, open **SQL Editor → New query** and run these files
 | 3 | `supabase-migrations/add-store-reviews.sql` | `products.old_price`, `reviews` table, rating-recompute trigger, reviews RLS |
 | 4 | `supabase-migrations/add-rls-hardening.sql` | Row Level Security on every table + the public `product-images` Storage bucket |
 | 5 | `supabase-migrations/add-landmarks.sql` | `landmarks` table (photo pins), its RLS, and the public `landmark-photos` Storage bucket |
+| 6 | `supabase-migrations/add-realtime.sql` | Adds `messages`, `conversations`, `stores`, `products`, `landmarks`, `reviews` to the `supabase_realtime` publication — **required** for live chat and for stores/products appearing on other users' screens without a refresh |
+| 7 | `supabase-migrations/add-user-locations.sql` | Makes the live map's "users on the map" tracker work: `updated_at` heartbeat on `user_locations`, one row per user, RLS (public read / owner write), and the table added to the `supabase_realtime` publication |
 
 Each should finish with a green success banner. If one errors, stop and
 report it — the next migration depends on the previous one.
+
+> ⚠️ **Step 6 is not optional.** Without the realtime migration the
+> app still works, but chat messages and marketplace updates will not appear
+> unless a user manually reloads the page — the exact "data isn't synced"
+> symptom. Run it and verify with two browsers/incognito windows.
+>
+> ⚠️ **Step 7 makes the map's location tracker live.** Before it, the
+> `user_locations` table exists but nothing ever writes to, reads from or
+> receives updates about it, so the map's user dots / "N users on the map"
+> counter always show **0 users** even when people are actually browsing.
 
 ## Step 3 — Grab the two keys (2 min)
 
@@ -70,12 +82,43 @@ These are *public by design* — safe to put in the browser and on Vercel.
 ## Step 5 — Sanity checks on the live site (5 min)
 
 - [ ] `/` loads, maps render (free CARTO/OSM tiles — no key needed)
+- [ ] **No red banner** at the top of the page (a red "Database not connected"
+  banner means the Supabase env vars are missing and the site is running in
+  per-browser demo mode — see below)
 - [ ] Sign up as a **seller** → you land in store onboarding
 - [ ] Create the store, add a product **with a photo** →
   photo uploads to Storage (check Supabase → Storage → `product-images`)
 - [ ] Sign up as a buyer → open the store → the **Chat** tab works
   (this confirms conversations/messages RLS is correct)
 - [ ] Add a store review → the store's rating updates (trigger check)
+- [ ] **Cross-user sync:** in a second browser/incognito window sign up a
+  different seller and create a store with a product — the first window's
+  homepage and search should show it within a second or two (no refresh).
+  Two windows chatting should show both sides instantly.
+- [ ] **Live user dots:** with two browsers open on `/search` (Map view), allow
+  location in one of them — the other should show that person as a blue dot
+  and a raised "users on the map" counter within a few seconds (requires
+  migrations 6 + 7).
+
+## If users can't see each other's data (the #1 support issue)
+
+This is almost always one of two things:
+
+1. **The deployed site is running in mock mode.** When
+   `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing
+   (or still the placeholder), the app silently falls back to a browser-local
+   demo database. Every user then sees *only their own browser's data* — other
+   people's stores, products and chats simply do not exist on their screen.
+   Fix: set both env vars in Vercel/Render **and redeploy**, then run
+   migration 6 (and 7, see below). A red banner on the live site is the tell.
+2. **Realtime migration not run.** With real mode correctly configured but
+   migration 6 skipped, data is shared but updates arrive only on page
+   reload. Run `add-realtime.sql` in the SQL Editor.
+3. **Map shows 0 users (location tracker).** Live user dots need migration 7
+   (`add-user-locations.sql`) for the realtime delivery + RLS + heartbeat.
+   Behavior checks: dots appear only for signed-in users who granted
+   geolocation; a dot disappears ~10 minutes after that user's page closes;
+   anonymous visitors see the map read-only.
 
 ## Step 6 — Go live on your own domain (optional, later)
 
