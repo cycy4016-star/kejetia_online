@@ -32,7 +32,5 @@ services:
           property: connectionString
       - key: NEXT_PUBLIC_DB_MODE
         value: postgres
-      - key: NEXT_PUBLIC_GOOGLE_MAPS_KEY
-        sync: false        # optional — the map runs on free layers without it
       - key: PORT
         value: 3000
