@@ -1,4 +1,4 @@
-# Kejetia Online — frontend (Next.js 14)
+# Kejetia Online — frontend + backend (Next.js 14, full-stack)
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -25,6 +25,10 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/node_modules ./node_modules
+# Schema + auto-migrate runner (applies db/schema.sql at boot when DATABASE_URL is set)
+COPY --from=builder /app/db ./db
+COPY --from=builder /app/scripts ./scripts
 
 EXPOSE 3000
-CMD ["npm", "start"]
+# Apply schema (idempotent, no-ops when DATABASE_URL is unset) then serve.
+CMD ["sh", "-c", "node ./scripts/migrate.mjs && npm start"]

@@ -1,143 +1,153 @@
-# Kejetia Online — Deployment Runbook
+# Kejetia Online — Deployment Runbook (Render, full-stack)
 
-Exact steps to take the platform from this repo to a live site.
-**Total time: ~30 minutes** (most of it waiting on providers). No code
-changes needed — the app is deploy-ready.
+Exact steps to take the platform from this repo to a live site on **Render**,
+where one web service hosts both the frontend and the backend (Next.js API
+routes in `app/api/*`) and one managed Postgres database stores everything.
+
+**Total time: ~20 minutes** (most of it waiting on Render to build/deploy).
+No code changes needed — the app is deploy-ready.
+
+---
+
+## Architecture in one paragraph
+
+There is **no separate backend server**. The Next.js app in `frontend/` is the
+whole stack:
+
+- Browser JS talks to our own API routes (`/api/query`, `/api/auth/*`,
+  `/api/events`, `/api/media/*`) instead of Supabase.
+- Those routes run SQL against Render Postgres and enforce authorization
+  server-side (this replaces Supabase's Row Level Security).
+- Realtime (live map, chat, cross-user sync) is HTTP polling of
+  `/api/events` (~2s) from the browser.
+- Images (photos) are stored as `BYTEA` in the `media` table and served via
+  `/api/media/{bucket}/{key}` — no object store needed.
+- The schema lives in `frontend/db/schema.sql` and is applied automatically
+  on container boot by `frontend/scripts/migrate.mjs` (idempotent).
+
+Two environment variables drive everything:
+
+| Variable | Where | Meaning |
+|---|---|---|
+| `NEXT_PUBLIC_DB_MODE` | build-time (Render env) | `postgres` = real backend; unset = browser-local mock mode |
+| `DATABASE_URL` | server-only | Postgres connection string (injected automatically by the Blueprint) |
 
 ---
 
 ## Prerequisites
 
 - [x] GitHub repo: `https://github.com/scantyragna/kejetia_online` (pushed)
-- [ ] A GitHub account — already used above
-- [ ] A Vercel account (sign up free at vercel.com — GitHub login works)
-- [ ] A Supabase account (sign up free at supabase.com)
+- [ ] A Render account (sign up free at render.com — GitHub login works)
 
 ---
 
-## Step 1 — Create the Supabase project (5 min)
+## Step 1 — Deploy on Render with the Blueprint (5 min)
 
-1. Go to **supabase.com → New project**.
-2. Pick a name (e.g. `kejetia-online`) and a strong database password
-   (save it somewhere safe — it's the database master password).
-3. **Region: pick `West EU (Ireland)`** — the closest region to Ghana.
-   ⚠️ The region can never be changed after creation.
-4. Create the project and wait ~2 minutes for it to provision.
+The repo contains `render.yaml` — a **Blueprint** that provisions both the web
+service and the Postgres database in one go.
 
-## Step 2 — Run the database migrations (5 min)
+1. Go to **render.com → New → Blueprint** (or "Blueprint" on the dashboard).
+2. Pick the `kejetia_online` GitHub repo. Render reads `render.yaml` and shows:
+   - **kejetia-online-web** (Docker web service, root `frontend/`)
+   - **kejetia-db** (Postgres)
+3. Click **Apply**. Render creates the database, builds the image and deploys.
+4. The Blueprint already wires:
+   - `DATABASE_URL` → the database's `connectionString`
+   - `NEXT_PUBLIC_DB_MODE=postgres` → **required**, switches the app out of mock mode
+   - `PORT=3000`
+5. When the build finishes you get a live URL like
+   `https://kejetia-online-web.onrender.com`. **Visit it — the homepage should
+   load with the map.**
 
-In Supabase, open **SQL Editor → New query** and run these files
-**in order, one at a time** (copy the file contents in):
+> ⚠️ **Free Postgres expires after 30 days.** For "deploy always" persistent
+> hosting, upgrade `kejetia-db` to a paid plan (Render → Databases →
+> kejetia-db → Settings → Plan) **before** the 30-day window closes. After
+> expiry the site loses all data and the database must be recreated.
 
-| Order | File | What it creates |
-|---|---|---|
-| 1 | `supabase-migrations/00-base-schema.sql` | The six core tables (`profiles`, `stores`, `products`, `conversations`, `messages`, `user_locations`) + the signup → profile trigger |
-| 2 | `supabase-migrations/add-products-stock.sql` | `products.stock` inventory column |
-| 3 | `supabase-migrations/add-store-reviews.sql` | `products.old_price`, `reviews` table, rating-recompute trigger, reviews RLS |
-| 4 | `supabase-migrations/add-rls-hardening.sql` | Row Level Security on every table + the public `product-images` Storage bucket |
-| 5 | `supabase-migrations/add-landmarks.sql` | `landmarks` table (photo pins), its RLS, and the public `landmark-photos` Storage bucket |
-| 6 | `supabase-migrations/add-realtime.sql` | Adds `messages`, `conversations`, `stores`, `products`, `landmarks`, `reviews` to the `supabase_realtime` publication — **required** for live chat and for stores/products appearing on other users' screens without a refresh |
-| 7 | `supabase-migrations/add-user-locations.sql` | Makes the live map's "users on the map" tracker work: `updated_at` heartbeat on `user_locations`, one row per user, RLS (public read / owner write), and the table added to the `supabase_realtime` publication |
+Other important first deploys:
 
-Each should finish with a green success banner. If one errors, stop and
-report it — the next migration depends on the previous one.
+- **First build takes 3–6 minutes** (Docker image + `npm run build`).
+- The container runs `node scripts/migrate.mjs` at boot, which applies
+  `db/schema.sql` automatically. You do **not** need to run migrations by hand.
+- If a deploy ever fails, check **Render → kejetia-online-web → Logs**:
+  a `[migrate] Failed to apply schema` line would indicate a SQL/DB problem.
 
-> ⚠️ **Step 6 is not optional.** Without the realtime migration the
-> app still works, but chat messages and marketplace updates will not appear
-> unless a user manually reloads the page — the exact "data isn't synced"
-> symptom. Run it and verify with two browsers/incognito windows.
->
-> ⚠️ **Step 7 makes the map's location tracker live.** Before it, the
-> `user_locations` table exists but nothing ever writes to, reads from or
-> receives updates about it, so the map's user dots / "N users on the map"
-> counter always show **0 users** even when people are actually browsing.
+## Step 2 — Sanity checks on the live site (5 min)
 
-## Step 3 — Grab the two keys (2 min)
-
-Supabase → **Settings → API** (or the homepage's Connect modal):
-copy
-
-- **Project URL** — looks like `https://xxxxxxxx.supabase.co`
-- **anon public key** (the `publishable` one, NOT `service_role`)
-
-These are *public by design* — safe to put in the browser and on Vercel.
-
-## Step 4 — Deploy on Vercel (10 min)
-
-1. Go to **vercel.com → Add New… → Project**.
-2. Import the `kejetia_online` GitHub repo. Vercel auto-detects
-   Next.js — leave the default settings (framework: Next.js, root:
-   `frontend/` if it asks).
-3. **Environment Variables** — add exactly two:
-
-   | Name | Value |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | your Project URL |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key |
-
-4. Click **Deploy**. First build takes a few minutes.
-5. When it finishes you get a live URL like `kejetia-online.vercel.app`.
-   **Visit it — the homepage should load with the map.**
-
-## Step 5 — Sanity checks on the live site (5 min)
-
-- [ ] `/` loads, maps render (free CARTO/OSM tiles — no key needed)
+- [ ] `/` loads, maps render (free CARTO/OSRM tiles — no key needed)
 - [ ] **No red banner** at the top of the page (a red "Database not connected"
-  banner means the Supabase env vars are missing and the site is running in
-  per-browser demo mode — see below)
+  banner means `NEXT_PUBLIC_DB_MODE` is not `postgres` and the site is
+  running per-browser mock mode — see below)
 - [ ] Sign up as a **seller** → you land in store onboarding
-- [ ] Create the store, add a product **with a photo** →
-  photo uploads to Storage (check Supabase → Storage → `product-images`)
+- [ ] Create the store, add a product **with a photo** → photo uploads to
+  Postgres (the upload returns an `/api/media/product-images/...` URL)
 - [ ] Sign up as a buyer → open the store → the **Chat** tab works
-  (this confirms conversations/messages RLS is correct)
-- [ ] Add a store review → the store's rating updates (trigger check)
+- [ ] Add a store review → the store's rating updates (server trigger)
 - [ ] **Cross-user sync:** in a second browser/incognito window sign up a
   different seller and create a store with a product — the first window's
-  homepage and search should show it within a second or two (no refresh).
+  homepage and search should show it within a few seconds (no refresh).
   Two windows chatting should show both sides instantly.
 - [ ] **Live user dots:** with two browsers open on `/search` (Map view), allow
   location in one of them — the other should show that person as a blue dot
-  and a raised "users on the map" counter within a few seconds (requires
-  migrations 6 + 7).
+  within a few seconds.
 
 ## If users can't see each other's data (the #1 support issue)
 
-This is almost always one of two things:
+The deployed site is running in **mock mode**. When `NEXT_PUBLIC_DB_MODE` is
+not exactly `postgres` (e.g. the env var was added after the build, or the
+Blueprint's `value: postgres` was removed), the app silently falls back to a
+browser-local demo database. Every user then sees *only their own browser's
+data*.
 
-1. **The deployed site is running in mock mode.** When
-   `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing
-   (or still the placeholder), the app silently falls back to a browser-local
-   demo database. Every user then sees *only their own browser's data* — other
-   people's stores, products and chats simply do not exist on their screen.
-   Fix: set both env vars in Vercel/Render **and redeploy**, then run
-   migration 6 (and 7, see below). A red banner on the live site is the tell.
-2. **Realtime migration not run.** With real mode correctly configured but
-   migration 6 skipped, data is shared but updates arrive only on page
-   reload. Run `add-realtime.sql` in the SQL Editor.
-3. **Map shows 0 users (location tracker).** Live user dots need migration 7
-   (`add-user-locations.sql`) for the realtime delivery + RLS + heartbeat.
-   Behavior checks: dots appear only for signed-in users who granted
-   geolocation; a dot disappears ~10 minutes after that user's page closes;
-   anonymous visitors see the map read-only.
+- **The tell:** a red "Database not connected" banner at the very top of the
+  live site.
+- **The fix:** set/keep `NEXT_PUBLIC_DB_MODE=postgres` on the service's
+  **Environment** tab, then **Deploy → Clear build cache & deploy**, and
+  confirm `DATABASE_URL` is populated (Blueprint services show it as
+  "managed from database kejetia-db"). A successful `migrate.mjs` log line
+  (`[migrate] Schema is up to date.`) confirms the backend is live.
 
-## Step 6 — Go live on your own domain (optional, later)
+---
 
-Vercel → your project → **Settings → Domains** — add your domain
-(e.g. `kejetiaonline.com`, ~$8–15/yr). Vercel issues the SSL
-certificate automatically.
+## Step 3 — Local development (no cloud needed)
+
+```bash
+cd frontend
+npm.cmd install
+npm.cmd run dev          # mock mode: browser-local data, works offline
+```
+
+To run against a real Postgres locally:
+
+```bash
+# 1. point at any Postgres (Render DB, Neon, local)
+$env:DATABASE_URL = "postgres://..."
+# 2. apply the schema once
+node ./scripts/migrate.mjs
+# 3. set NEXT_PUBLIC_DB_MODE=postgres in frontend/.env.local, restart dev
+npm.cmd run dev
+```
+
+> `frontend/.env.local` ships with `NEXT_PUBLIC_DB_MODE` commented out so the
+> default is mock mode (no database required). Uncomment it only when a
+> `DATABASE_URL` is actually reachable.
 
 ---
 
 ## After launch — notes & limits
 
-- **Free email sender: 2 auth emails/hour** (~48 signups/day). When you
-  run a marketing push, add Google OAuth (Suppabase → Authentication →
-  Providers → Google) or a free SMTP (Resend/Brevo) — see
-  `SYSTEM_OVERVIEW.md` §4 for the full capacity table.
-- **Photos are compressed client-side to < 500 KB** and stored in the
-  `product-images` bucket — keep that compression; it's what keeps the
-  1 GB bucket and the 500 MB database usable.
-- **Free project pauses after 7 days of inactivity**, then wakes on the
-  next request. A live storefront won't hit this.
-- Region, project name and database password can't be changed after
-  creation — only re-create the project.
+- **Photos are compressed client-side to < 500 KB** (`frontend/lib/media.js`)
+  and stored in Postgres as `BYTEA`. That compression keeps the database
+  small — keep it; raw phone photos (multi-MB) would bloat the DB and slow
+  the site.
+- **Realtime is HTTP polling (~2s)** — instant enough for chat and the live
+  map, but if chat ever needs true sub-second delivery consider a WebSocket
+  layer (e.g. a small Node service). Fine for now.
+- **Auth** is app-managed: users + sessions live in Postgres, passwords are
+  bcrypt-hashed, and login sets an httpOnly cookie (`kj_session`, 30 days).
+  There is no email verification/confirmation — signup logs you straight in.
+- **Free instances sleep after ~15 min of inactivity** and wake on the next
+  request (first load after an idle period may take ~30 s). Render's paid
+  instance types keep it always-hot.
+- **Regions:** pick a region close to your users when creating the database
+  (e.g. `Frankfurt` for Ghana/Europe) — it cannot be changed after creation.

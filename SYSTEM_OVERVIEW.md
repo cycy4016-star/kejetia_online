@@ -1,36 +1,39 @@
 # Kejetia Online — System Overview
 
 A plain-language guide to how the platform works: the pieces that run it, how
-user data flows through it, how security works, what the free limits are, and
-how it grows. Written for founders, engineers, and future teammates.
+user data flows through it, how security works, what the limits are, and how
+it grows. Written for founders, engineers, and future teammates.
 
 ---
 
-## 1. The big picture: three machines
+## 1. The big picture: one machine + one database
 
-Deployed, the platform runs on **two computers** (plus GitHub as the code
-locker). There is no separate "backend server" in this architecture.
+Deployed, the platform runs on **two machines** (plus GitHub as the code
+locker). There is no separate backend server — the Next.js app *is* the
+backend.
 
 | Piece | What it runs | Analogy |
 |---|---|---|
-| **Vercel** | The website — all the Next.js/React code a visitor's browser downloads and runs. Hosts the pages, the API routes, and previews. | The **shop front + cashier desk**. |
-| **Supabase** | The database, login system (Auth), file storage, and realtime chat. One managed Postgres database with superpowers bolted on. | The **back office**: ledger, key cabinet, stockroom, messenger. |
-| **GitHub** | Just stores the code. Vercel pulls from GitHub and deploys it. | The **blueprint filing cabinet**. |
+| **Render (web service)** | The whole Next.js app — pages a visitor's browser downloads, *and* the backend API routes in `frontend/app/api/*` which run in the same container. | The **shop front + cashier desk + back office**. |
+| **Render Postgres** | One managed PostgreSQL database — user accounts, stores, products, reviews, chats, live locations, and photo bytes. | The **ledger, stockroom, and messenger**. |
+| **GitHub** | Just stores the code. Render pulls from GitHub and deploys it. | The **blueprint filing cabinet**. |
 
-What used to be the "backend" is now two things, and both live *inside*
-Supabase:
+All the "backend" work — signup/login, every data read and write, realtime
+updates, image storage — happens in **Next.js API routes** (`app/api/*`):
 
-1. **Row Level Security (RLS)** — rules stored *in the database* that decide
-   who can read/write what. This is the security wall *and* the business
-   logic.
-2. **Triggers & functions** — small programs that run automatically when data
-   changes. Example already in production: when a review is added, a trigger
-   recomputes the store's rating and review count.
-
-When real server-side code is needed later (sending an email digest, bulk
-import, PDF invoice), it goes in **Vercel serverless functions** (the existing
-`frontend/app/api/` folders — currently empty shells) or **Supabase Edge
-Functions**. Both are free at launch scale.
+1. **`/api/auth/*`** — signup/signin/signout/session. Passwords are bcrypt-
+   hashed; signing in sets an httpOnly session cookie (30 days).
+2. **`/api/query`** — the generic data gateway. The browser sends a small way
+   of describing "fetch stores where active" / "insert this product" etc., and
+   the route builds parameterized SQL, **enforces authorization**, runs it
+   against Postgres, and returns the rows.
+3. **`/api/events`** — realtime. The browser polls this endpoint every ~2 s;
+   it returns rows that changed since the last poll. This is what makes chat
+   messages, new stores, and map dots appear on other users' screens without a
+   page refresh.
+4. **`/api/media/*`** — photo upload + serving. Photos live inside Postgres
+   (BYTEA) and are served through an API path, so no separate object storage
+   is needed.
 
 The old `backend/` folder (Express, one `/api/health` endpoint) is a stub —
 nothing flows through it. It is retired from the architecture and exists only
@@ -40,113 +43,99 @@ in the repo for historical reference.
 
 ## 2. How user data flows (the journey)
 
-Every table below is real Postgres. In **mock mode** (no Supabase env vars
+Every table below is real Postgres. In **mock mode** (no `NEXT_PUBLIC_DB_MODE`
 set), the exact same code runs against `localStorage` in the visitor's own
 browser — perfect for development, useless for a real product. Set the two env
-vars and the same code talks to the cloud database instead.
+vars (`NEXT_PUBLIC_DB_MODE=postgres` + `DATABASE_URL`) and the same code talks
+to the cloud database instead.
 
-**A buyer signs up.** Supabase Auth creates a locked-away identity row in
-`auth.users` (you can't touch it). The app then creates a row in `profiles`
-(name, phone, role = `buyer`). Two tables on purpose: credentials are private,
-the profile is safe to show.
+**A buyer signs up.** `/api/auth/signup` creates a row in `users` (email +
+bcrypt password hash) and a matching row in `profiles` (name, phone, role =
+`buyer`). Two tables on purpose: credentials are private, the profile is safe
+to show. A hashed token is stored in `sessions` and set as the `kj_session`
+httpOnly cookie.
 
 **A seller creates a store.** One row in `stores`: name, description, phone,
 WhatsApp number, and **latitude/longitude** — this is what powers every map
-pin in the app. The `owner_id` column links it to the seller's profile. RLS
-says: anyone can view a store, only the owner can edit it.
+pin in the app. The `owner_id` column links it to the seller's profile.
+Anyone can view a store, only the owner can edit it (enforced by the API
+route, not by the database).
 
 **The seller lists products.** One row in `products` per item: name, price,
 `stock` (blank = plenty, 0 = out, 1–5 = low), `old_price` (a higher "was"
 price turns the item into a −% deal everywhere). Product **photos** are
-stored as URLs pointing into Supabase Storage — never as image data inside the
-database row (see the storage section below).
+compressed in the browser (<500 KB), uploaded via `/api/media/upload`, stored
+as bytes in the `media` table, and referenced by URL
+(`/api/media/product-images/…`).
 
-**A buyer reviews a store.** One row in `reviews` → the **trigger** fires →
-recomputes `stores.rating` and `stores.review_count`. The rating you see on
-the homepage, search, and map is *derived from actual reviews*, not hand-typed.
+**A buyer reviews a store.** One row in `reviews` → a **Postgres trigger**
+fires → recomputes `stores.rating` and `stores.review_count`. The rating you
+see on the homepage, search, and map is *derived from actual reviews*, not
+hand-typed.
 
 **Chat.** One `conversations` row links a buyer to a store, and `messages`
-rows carry the conversation. Supabase **Realtime** pushes new messages to open
-screens instantly — no refresh needed.
+rows carry the conversation. The browser polls `/api/events` every ~2 s for
+new messages, and the server only ever returns conversations/messages that
+belong to the signed-in user.
 
 **The map.** Stores carry coordinates. The app renders them on free CARTO/OSM
 tiles, with a geo-referenced Kejetia image overlay at high zoom, an in-market
 walking graph (`lib/kejetia-graph.js`), and Google-Maps deep links for turn-by-
-turn. The map is the product's differentiator and also its biggest growth
-opportunity (see "Limitations").
+turn. Signed-in users who grant geolocation write their position to
+`user_locations` on a ~60 s heartbeat; every browser polls for those rows, so
+live "user dots" appear and retire after ~10 min of silence.
 
 ---
 
-## 3. Security: why the anon key being public is fine
+## 3. Security: the wall is in the API layer
 
-The Supabase **anon key** ships in the browser. Anyone can read it. That is
-*by design* — the wall is not secrecy, it's **RLS**. Every query the browser
-makes is filtered through "who is asking?" (`auth.uid()`):
+Supabase used Row Level Security *inside the database*. This app has no RLS —
+instead, **every API route checks "who is asking?" before it runs any SQL,**
+using the signed-in user from the httpOnly session cookie. Concretely:
 
-```sql
--- Anyone may see stores, but ONLY the owner may edit them
-CREATE POLICY stores_select ON stores FOR SELECT USING (true);
-CREATE POLICY stores_update ON stores FOR UPDATE
-  USING (owner_id = auth.uid());
-```
+- A signed-out visitor can read stores/products/landmarks but gets denied any
+  write (and any chat/message read).
+- Store editing requires `owner_id = <your id>`; product editing requires the
+  product to belong to *your* store.
+- Conversations and messages are only ever returned to their participants.
+- Writes go through a strict column allowlist (`INSERT_COLUMNS` /
+  `UPDATE_COLUMNS` in `app/api/query/route.js`) — a client cannot set
+  `owner_id`, `rating`, `review_count`, or another user's fields.
 
-A hacker with the anon key can *try* anything — the database refuses
-everything their identity doesn't allow. This is why the RLS audit in
-`supabase-migrations/add-rls-hardening.sql` matters: **every table must have
-correct policies before real users onboard.** Missing policies in Supabase
-default to *deny everything*, which is safe but confusing; the audit makes
-each table explicitly right.
+Passwords never leave the server as plaintext (bcrypt hash at rest), session
+tokens are stored hashed (SHA-256) in `sessions`, and the cookie is `httpOnly`
+(JavaScript can't read it, so XSS can't steal it).
 
-Supabase Storage works the same way: the `product-images` bucket is public for
-reading (so `<img>` tags work) but only the store owner can upload into their
-own folder path.
+The schema and all authorization live in one readable file:
+`frontend/db/schema.sql` + the API routes that read it.
 
 ---
 
 ## 4. Capacity: how many users fit, and where the ceilings are
 
-Verified numbers (2026, free tiers).
+Verified numbers (2026, Render free tiers).
 
-### The onboarding constraint: auth emails
+### The onboarding constraint: the database
 
-Every email signup with confirmation enabled sends a verification email.
-Supabase's built-in free sender is capped at **2 auth emails per hour,
-project-wide** — shared by signups *and* password resets across the entire
-platform.
-
-| Path | Realistic daily ceiling | Notes |
-|---|---|---|
-| Email + confirmation (free sender) | **~40–48/day** | The launch default. ~1,300/month — right for onboarding real traders one by one. |
-| Magic link / OTP | 30/hr project-wide | Sent by email, so the 2/hr sender caps it anyway. |
-| Google / Apple / WhatsApp OAuth | **thousands/day** | No email sent at all — the 2/hr cap vanishes. Best spike-buster. |
-| Custom SMTP (Resend, Brevo) | ~100–300/day | Raises auth email cap to 30/hr (720/day); the SMTP provider's own free daily cap binds first. |
-| Email confirmation OFF | thousands/day | Removes the cap but is unsafe: no address verification, no account recovery. Not recommended. |
-
-**Bottom line:** launch with confirmation on at ~48/day. The day a marketing
-push could spike signups, flip on **Google OAuth** (free, dashboard toggle +
-small code tweak) or wire a free **SMTP** — both are documented in this file's
-upgrade path.
+**Render's free Postgres expires after 30 days.** For persistent "deploy
+always" hosting, upgrade the database to a paid plan before that window
+closes. After expiry the DB is deleted — all users, stores and photos are
+gone and the database must be recreated.
 
 ### Storage & database
 
 | Resource | Free limit | What it means |
 |---|---|---|
-| Database | 500 MB | Tens of thousands of user/store/product/review rows — plenty. |
-| File storage | 1 GB | Product photos live here. After client-side compression (<500 KB each), **~5–10k photos**. |
-| Data egress | 5 GB/mo | ~5k image-heavy page views / ~50k light views. The first limit a growing marketplace hits. |
-| Monthly active users | 50k | Not a launch constraint. |
-| Inactivity pause | 7 days | Free projects pause after a week of no traffic, then wake on demand. Not an issue while live. |
-
-### Vercel Hobby
-
-100 GB bandwidth/mo, 1M function invocations/mo, 4h active CPU. The pages are
-mostly static + client-rendered, so usage is tiny at launch.
+| Database | 1 GB (free) | Tens of thousands of user/store/product/review rows — plenty. Photos are bytes here too, which is why client-side compression to <500 KB matters. |
+| Web service | free instance sleeps after ~15 min idle | Wakes on the next request (first load after idle ~30 s). Not an issue while live. |
+| Realtime | HTTP polling, ~2 s | Good enough for chat + live map at this scale. A WebSocket layer is the upgrade path for sub-second delivery. |
+| Auth | app-managed, no external limits | No email-confirmation sender caps (signup logs straight in). If you add email verification later, pick any SMTP provider. |
 
 ### The honest flags
 
-- **No African Supabase region.** Closest is eu-west-1 (Ireland) / eu-central-1
-  (Frankfurt), ~100 ms from Ghana. Pick the region at project creation — it
-  can never be changed afterward.
+- **No African Render region.** Closest is Frankfurt (eu-central-1),
+  ~100 ms from Ghana. Pick the region when creating the database — it can
+  never be changed afterward.
 - **Maps run on free community services** (OSRM routing, CARTO/OSM tiles).
   Free but rate-limited and with no SLA. Fine at launch; budget for a paid
   tiles/routing provider when the map becomes the flagship (it will).
@@ -154,9 +143,12 @@ mostly static + client-rendered, so usage is tiny at launch.
   read receipts, or templates. The WhatsApp Business API (paid, Meta-approved)
   is the upgrade path.
 - **"Free forever" is a myth.** The honest upgrade path, in order:
-  1. Custom SMTP (Resend/Brevo free tier) — unlocks hundreds of signups/day.
-  2. Supabase Pro ($25/mo) — when you approach 500 MB DB or 5 GB egress.
-  3. Vercel Pro ($20/mo) — when bandwidth approaches 100 GB.
+  1. Upgrade Render Postgres past the free 30-day plan (persistence) —
+     first and non-negotiable for real hosting.
+  2. Paid web service instance (always-hot, more CPU/RAM) — when the free
+     sleep/limits start to pinch.
+  3. Media/CDN split — if photos-in-Postgres ever grow large, move images to
+     an object store (S3/Cloudflare R2) and store URLs instead of bytes.
   By then the platform should have revenue to carry them.
 
 ---
@@ -165,29 +157,25 @@ mostly static + client-rendered, so usage is tiny at launch.
 
 ### Modes
 
-- **Mock mode (dev):** no Supabase env vars → everything persisted to
+- **Mock mode (dev):** `NEXT_PUBLIC_DB_MODE` unset → everything persisted to
   `localStorage` under `kejetia_v2_*`. Tables start empty (demo data was
-  removed at launch). Great for pure UI work.
-- **Real mode (production):** set `NEXT_PUBLIC_SUPABASE_URL` and
-  `NEXT_PUBLIC_SUPABASE_ANON_KEY` → the `inMockMode()` switch flips and the
-  same code talks to Postgres.
+  removed at launch). Great for pure UI work — no database needed.
+- **Postgres mode (production):** set `NEXT_PUBLIC_DB_MODE=postgres` (client-
+  side) and `DATABASE_URL` (server-side) → the same code talks to our own API
+  routes, which talk to Postgres.
 
-### Migrations (`supabase-migrations/`)
+### Schema & migrations (`frontend/db/schema.sql`)
 
-Run each once in the Supabase SQL editor, in this exact order:
-
-1. `00-base-schema.sql` — the six core tables (`profiles`, `stores`,
-   `products`, `conversations`, `messages`, `user_locations`) + the
-   signup → profile trigger.
-2. `add-products-stock.sql` — `products.stock` column + index.
-3. `add-store-reviews.sql` — `products.old_price`, `reviews` table, rating
-   trigger, reviews RLS.
-4. `add-rls-hardening.sql` — RLS policies for every remaining table +
-   the public `product-images` storage bucket.
+One file, applied automatically at container boot by
+`frontend/scripts/migrate.mjs`. It is idempotent (safe to re-run) and
+creates: `users`, `sessions`, `profiles`, `stores`, `products`, `reviews`
+(+ rating trigger), `landmarks`, `conversations`, `messages`,
+`user_locations`, and `media`. The old `supabase-migrations/` folder is
+historical and superseded — do not use it.
 
 ### Deploy
 
-Vercel: import the GitHub repo, set the two env vars, deploy. Supabase: create
-the project (pick **eu-west-1**), run the migrations, and the site is live —
-the browser talks to the database directly, so no backend provisioning is
-needed.
+Render Blueprint (`render.yaml`): import the GitHub repo, one click provisions
+the web service + Postgres, wires `DATABASE_URL`
+(`fromDatabase`) and `NEXT_PUBLIC_DB_MODE=postgres`, runs the migration at
+boot, and the site is live. See `DEPLOYMENT.md` for the exact runbook.

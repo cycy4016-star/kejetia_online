@@ -1,37 +1,31 @@
-import { createClient } from '@supabase/supabase-js'
+// Kejetia Online — data client.
+//
+// Two modes, same fluent surface (`from().select().eq()...`, `auth.*`,
+// `channel().on('postgres_changes'...).subscribe()`, `storage.from()`):
+//
+//   • Mock mode (default):  browser-only data in localStorage, BroadcastChannel
+//     realtime. Set NEXT_PUBLIC_DB_MODE=postgres (+ DATABASE_URL on the server)
+//     to leave it. Everything still works offline — great for local dev.
+//
+//   • Postgres mode:  every call is proxied to our own Next.js API routes
+//     (/api/query, /api/auth/*, /api/events, /api/media/*) which execute the
+//     SQL against Render Postgres and enforce authorization server-side.
+//
+// The app never talks to Supabase anymore.
 
-let client = null
-
-// Storage namespace. The "v2" bump deliberately abandons anything written by
-// earlier demo builds, so a clean install never shows demo stores, products,
-// reviews or users. Mock mode still persists real user activity under this
-// namespace only — clear it to fully reset.
 const STORAGE_NS = 'kejetia_v2_'
 
 // ───────────────────────────────────────────────────────────────────────────
-// Mock realtime layer
+// Mock realtime layer (browser-only, BroadcastChannel + storage events)
 // ───────────────────────────────────────────────────────────────────────────
-// The real platform syncs via Supabase Realtime. In mock mode there is no
-// server, so the same `postgres_changes` subscriptions are served from THIS
-// browser: rows a tab writes are broadcast to every other tab (and window)
-// on the same machine through BroadcastChannel, with the `storage` event as
-// a fallback. That makes local/demo builds behave like a shared database —
-// two open tabs see each other's stores, products and chat messages live,
-// exactly the way Supabase Realtime delivers them in production.
 const MOCK_REALTIME_CHANNEL = 'kejetia-mock-realtime'
 const RECENT_WINDOW_MS = 1500
 
-// `{$table}` -> array of { event, handler }
 const realtimeHandlers = new Map()
-// channel object -> array of { table, event, handler } (for teardown)
 const realtimeRegistrations = new Map()
-// `${table}:${event}:${id}` -> timestamp — collapses double delivery when a
-// change arrives through both BroadcastChannel and the storage-event fallback.
 const recentDeliveries = new Map()
-// `$table` -> Set(ids) seen by this tab — powers the storage-event diff.
 const knownIds = new Map()
 
-// Matches Supabase's `column=eq.value` filter used by realtime subscriptions.
 function matchesMockFilter(row, filter) {
   if (!filter) return true
   const match = String(filter).match(/([A-Za-z_][A-Za-z0-9_]*)=eq\.(.+)/)
@@ -41,13 +35,13 @@ function matchesMockFilter(row, filter) {
 }
 
 function mockRealTime() {
-  const add = (channel, table, event, handler) => {
+  const add = (channel, table, event, handler, filter) => {
     const list = realtimeHandlers.get(table) || []
     list.push({ event: event || '*', handler })
     realtimeHandlers.set(table, list)
 
     const regs = realtimeRegistrations.get(channel) || []
-    regs.push({ table, event: event || '*', handler })
+    regs.push({ table, event: event || '*', handler, filter })
     realtimeRegistrations.set(channel, regs)
   }
 
@@ -79,7 +73,7 @@ function mockRealTime() {
       try {
         reg.handler({ table, schema: 'public', event, new: row })
       } catch (err) {
-        console.warn('Mock realtime handler threw:', err)
+        console.warn('Realtime handler threw:', err)
       }
     }
   }
@@ -103,8 +97,6 @@ function publishChange(event, table, row) {
   realtime.deliver(event, table, row)
 }
 
-// Replay rows that another tab wrote while this one was open (fallback for
-// browsers without BroadcastChannel, and any tab that missed the message).
 function syncFromStorage(table) {
   const raw = safeReadJson(`${STORAGE_NS}${table}`, [])
   const rows = Array.isArray(raw) ? raw : []
@@ -148,75 +140,70 @@ function wireMockRealtime() {
   }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Postgres realtime (HTTP polling of /api/events — replaces Supabase Realtime)
+// ───────────────────────────────────────────────────────────────────────────
+const remotePollers = new Map() // channel -> interval id
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve) => {
+    if (typeof FileReader === 'undefined') return resolve(null)
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => resolve(null)
+    reader.readAsDataURL(blob)
+  })
+}
+
+function startRemotePoller(channel, intervalMs = 2000) {
+  if (remotePollers.has(channel)) return
+  let since = new Date().toISOString()
+
+  const tick = async () => {
+    const regs = realtimeRegistrations.get(channel) || []
+    if (!regs.length) {
+      stopRemotePoller(channel)
+      return
+    }
+    const channels = regs.map((r) => ({ table: r.table, event: r.event, filter: r.filter }))
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channels, since }),
+      })
+      const body = await res.json()
+      if (body?.events) {
+        for (const ev of body.events) {
+          realtime.deliver(ev.event, ev.table, ev.new)
+        }
+      }
+      if (body?.now) since = body.now
+    } catch (err) {
+      // transient network error — try again next tick
+    }
+  }
+
+  const id = setInterval(tick, intervalMs)
+  remotePollers.set(channel, id)
+}
+
+function stopRemotePoller(channel) {
+  const id = remotePollers.get(channel)
+  if (id) clearInterval(id)
+  remotePollers.delete(channel)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Mock mode storage + safe JSON helpers
+// ───────────────────────────────────────────────────────────────────────────
 function getLocalStorage() {
   if (typeof window === 'undefined') return null
   return window.localStorage
 }
 
-function readMockUsers() {
-  const storage = getLocalStorage()
-  if (!storage) return []
-
-  try {
-    const value = storage.getItem(`${STORAGE_NS}mock_users`)
-    return value ? JSON.parse(value) : []
-  } catch (error) {
-    console.error('Unable to read mock users', error)
-    return []
-  }
-}
-
-function writeMockUsers(users) {
-  const storage = getLocalStorage()
-  if (!storage) return
-
-  storage.setItem(`${STORAGE_NS}mock_users`, JSON.stringify(users))
-}
-
-function readCurrentUser() {
-  const storage = getLocalStorage()
-  if (!storage) return null
-
-  try {
-    const value = storage.getItem(`${STORAGE_NS}mock_current_user`)
-    return value ? JSON.parse(value) : null
-  } catch (error) {
-    console.error('Unable to read mock current user', error)
-    return null
-  }
-}
-
-function writeCurrentUser(user) {
-  const storage = getLocalStorage()
-  if (!storage) return
-
-  storage.setItem(`${STORAGE_NS}mock_current_user`, JSON.stringify(user))
-}
-
-function clearCurrentUser() {
-  const storage = getLocalStorage()
-  if (!storage) return
-
-  storage.removeItem(`${STORAGE_NS}mock_current_user`)
-}
-
-function toSafePublicUser(user) {
-  if (!user) return null
-  return {
-    id: user.id,
-    email: user.email,
-    app_metadata: { provider: 'mock' },
-    user_metadata: {
-      full_name: user.full_name,
-      phone: user.phone,
-      role: user.role,
-    },
-  }
-}
-
 function safeReadJson(key, fallback = []) {
   if (typeof window === 'undefined') return fallback
-
   try {
     const value = window.localStorage.getItem(key)
     if (value == null || value === '') return fallback
@@ -230,7 +217,6 @@ function safeReadJson(key, fallback = []) {
 
 function safeWriteJson(key, value) {
   if (typeof window === 'undefined') return
-
   try {
     window.localStorage.setItem(key, JSON.stringify(value))
   } catch (error) {
@@ -247,15 +233,28 @@ function saveTable(tableName, rows) {
   safeWriteJson(`${STORAGE_NS}${tableName}`, rows)
 }
 
+function toSafePublicUser(user) {
+  if (!user) return null
+  return {
+    id: user.id,
+    email: user.email,
+    app_metadata: { provider: 'mock' },
+    user_metadata: {
+      full_name: user.full_name,
+      phone: user.phone,
+      role: user.role,
+    },
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Mock mode: fluent query builder over localStorage
+// ───────────────────────────────────────────────────────────────────────────
 function createMockQuery(tableName, initialRows = []) {
   let rows = Array.isArray(initialRows) ? [...initialRows] : []
   let filterFns = []
   let orderBy = null
   let limitCount = null
-  // Mutation ops are DEFERRED — the real postgrest builder applies them when
-  // the promise resolves, so callers chain filters AFTER the op:
-  //   from('stores').update(payload).eq('id', X)
-  //   from('products').delete().eq('id', X)
   let pendingOp = null // { type: 'update'|'delete', payload? }
 
   const applyPendingOp = () => {
@@ -283,71 +282,44 @@ function createMockQuery(tableName, initialRows = []) {
 
   const run = () => {
     applyPendingOp()
-
     let result = [...rows]
-
-    for (const fn of filterFns) {
-      result = result.filter(fn)
-    }
-
+    for (const fn of filterFns) result = result.filter(fn)
     if (orderBy) {
       const { field, ascending } = orderBy
       result = [...result].sort((a, b) => {
         const aValue = a[field]
         const bValue = b[field]
-
         if (aValue == null && bValue == null) return 0
         if (aValue == null) return 1
         if (bValue == null) return -1
-
         if (aValue < bValue) return ascending ? -1 : 1
         if (aValue > bValue) return ascending ? 1 : -1
         return 0
       })
     }
-
-    if (limitCount != null) {
-      result = result.slice(0, limitCount)
-    }
-
+    if (limitCount != null) result = result.slice(0, limitCount)
     return { data: result }
   }
 
   const query = {
-    select() {
-      return query
-    },
-    eq(field, value) {
-      filterFns.push((row) => row[field] === value)
-      return query
-    },
+    select() { return query },
+    eq(field, value) { filterFns.push((row) => row[field] === value); return query },
     in(field, values) {
       const list = Array.isArray(values) ? values : [values]
       filterFns.push((row) => list.includes(row[field]))
       return query
     },
     not(field, operator, value) {
-      if (operator === 'is') {
-        filterFns.push((row) => row[field] !== null && row[field] !== undefined)
-      }
+      if (operator === 'is') filterFns.push((row) => row[field] !== null && row[field] !== undefined)
       return query
     },
     order(field, options = {}) {
       orderBy = { field, ascending: options.ascending !== false }
       return query
     },
-    limit(count) {
-      limitCount = Number(count)
-      return query
-    },
-    single: async () => {
-      const result = run()
-      return { data: result.data[0] || null }
-    },
-    maybeSingle: async () => {
-      const result = run()
-      return { data: result.data[0] || null }
-    },
+    limit(count) { limitCount = Number(count); return query },
+    single: async () => ({ data: run().data[0] || null }),
+    maybeSingle: async () => ({ data: run().data[0] || null }),
     insert(payload) {
       const nextRows = [...rows]
       const newRow = {
@@ -359,24 +331,92 @@ function createMockQuery(tableName, initialRows = []) {
       nextRows.push(newRow)
       saveTable(tableName, nextRows)
       publishChange('INSERT', tableName, newRow)
-      return createMockQuery(tableName, nextRows)
-        .select()
-        .eq('id', newRow.id)
+      return createMockQuery(tableName, nextRows).select().eq('id', newRow.id)
     },
-    update(payload) {
-      pendingOp = { type: 'update', payload }
-      return query
-    },
-    delete() {
-      pendingOp = { type: 'delete' }
-      return query
-    },
-    then(resolve, reject) {
-      Promise.resolve(run()).then(resolve, reject)
-    },
+    update(payload) { pendingOp = { type: 'update', payload }; return query },
+    delete() { pendingOp = { type: 'delete' }; return query },
+    then(resolve, reject) { Promise.resolve(run()).then(resolve, reject) },
   }
 
   return query
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Postgres mode: fluent query builder → POST /api/query
+// ───────────────────────────────────────────────────────────────────────────
+function createRemoteQuery(tableName) {
+  const ops = []
+
+  const exec = async () => {
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ table: tableName, ops }),
+    })
+    let body
+    try {
+      body = await res.json()
+    } catch {
+      body = { data: null, error: { message: 'Could not read server response.' } }
+    }
+    return body
+  }
+
+  const query = {
+    select(spec) {
+      // Record the spec so the server can project columns and resolve
+      // embedded resources (e.g. '*, stores(name, phone)').
+      ops.push({ op: 'select', args: [spec] })
+      return query
+    },
+    eq(field, value) { ops.push({ op: 'eq', args: [field, value] }); return query },
+    in(field, values) { ops.push({ op: 'in', args: [field, values] }); return query },
+    not() { return query },
+    order(field, options = {}) { ops.push({ op: 'order', args: [field, options] }); return query },
+    limit(count) { ops.push({ op: 'limit', args: [count] }); return query },
+    single() { ops.push({ op: 'single' }); return exec() },
+    maybeSingle() { ops.push({ op: 'maybeSingle' }); return exec() },
+    insert(payload) { ops.push({ op: 'insert', args: [payload] }); return query },
+    upsert(payload, options = {}) { ops.push({ op: 'upsert', args: [payload, options] }); return query },
+    update(payload) { ops.push({ op: 'update', args: [payload] }); return query },
+    delete() { ops.push({ op: 'delete', args: [] }); return query },
+    then(resolve, reject) { exec().then(resolve, reject) },
+  }
+
+  return query
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Mode detection
+// ───────────────────────────────────────────────────────────────────────────
+export function inMockMode() {
+  const mode = process.env.NEXT_PUBLIC_DB_MODE
+  return !mode || mode !== 'postgres'
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Mock client (auth + storage + channels)
+// ───────────────────────────────────────────────────────────────────────────
+function readMockUsers() {
+  return safeReadJson(`${STORAGE_NS}mock_users`, [])
+}
+
+function writeMockUsers(users) {
+  safeWriteJson(`${STORAGE_NS}mock_users`, users)
+}
+
+function readCurrentUser() {
+  return safeReadJson(`${STORAGE_NS}mock_current_user`, null)
+}
+
+function writeCurrentUser(user) {
+  safeWriteJson(`${STORAGE_NS}mock_current_user`, user)
+}
+
+function clearCurrentUser() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(`${STORAGE_NS}mock_current_user`)
 }
 
 function createMockClient() {
@@ -385,11 +425,8 @@ function createMockClient() {
   const emitAuth = (event, sessionUser) => {
     authListeners.forEach((callback) => {
       try {
-        if (event === 'SIGNED_IN') {
-          callback(event, { user: toSafePublicUser(sessionUser) })
-        } else {
-          callback(event, null)
-        }
+        if (event === 'SIGNED_IN') callback(event, { user: toSafePublicUser(sessionUser) })
+        else callback(event, null)
       } catch (err) {
         console.warn('Mock auth listener threw:', err)
       }
@@ -399,22 +436,14 @@ function createMockClient() {
   const notifySignedIn = (user) => emitAuth('SIGNED_IN', user)
   const notifySignedOut = () => emitAuth('SIGNED_OUT', null)
 
-  // Clean install: every table starts empty and is created by real users.
-  // Nothing is seeded — the marketplace fills up with live data only.
-
   return {
     auth: {
       async signUp({ email, password, options = {} }) {
         const users = readMockUsers()
-        const existingUser = users.find((user) => user.email.toLowerCase() === String(email).toLowerCase())
-
+        const existingUser = users.find((u) => u.email.toLowerCase() === String(email).toLowerCase())
         if (existingUser) {
-          return {
-            data: { user: toSafePublicUser(existingUser), session: { user: toSafePublicUser(existingUser) } },
-            error: null,
-          }
+          return { data: { user: toSafePublicUser(existingUser), session: { user: toSafePublicUser(existingUser) } }, error: null }
         }
-
         const newUser = {
           id: `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           email: String(email).toLowerCase(),
@@ -423,14 +452,9 @@ function createMockClient() {
           phone: options?.data?.phone || '',
           role: options?.data?.role || 'buyer',
         }
-
         users.push(newUser)
         writeMockUsers(users)
         writeCurrentUser(newUser)
-
-        // Mirror the Postgres `on_auth_user_created` trigger (00-base-schema.sql)
-        // so the mock database behaves like real mode: a `profiles` row exists
-        // for every account the moment it is created.
         const profiles = cloneTable('profiles')
         if (!profiles.some((p) => p.id === newUser.id)) {
           profiles.push({
@@ -443,74 +467,34 @@ function createMockClient() {
           })
           saveTable('profiles', profiles)
         }
-
         queueMicrotask(() => notifySignedIn(newUser))
-
-        return {
-          data: {
-            user: toSafePublicUser(newUser),
-            session: { user: toSafePublicUser(newUser) },
-          },
-          error: null,
-        }
+        return { data: { user: toSafePublicUser(newUser), session: { user: toSafePublicUser(newUser) } }, error: null }
       },
 
       async signInWithPassword({ email, password }) {
         const users = readMockUsers()
         const match = users.find(
-          (user) => user.email.toLowerCase() === String(email).toLowerCase() && user.password === String(password)
+          (u) => u.email.toLowerCase() === String(email).toLowerCase() && u.password === String(password)
         )
-
         if (!match) {
-          return {
-            data: { user: null, session: null },
-            error: { message: 'Invalid email or password' },
-          }
+          return { data: { user: null, session: null }, error: { message: 'Invalid email or password' } }
         }
-
         writeCurrentUser(match)
-
         queueMicrotask(() => notifySignedIn(match))
-
-        return {
-          data: {
-            user: toSafePublicUser(match),
-            session: { user: toSafePublicUser(match) },
-          },
-          error: null,
-        }
+        return { data: { user: toSafePublicUser(match), session: { user: toSafePublicUser(match) } }, error: null }
       },
 
       async getSession() {
         const user = readCurrentUser()
-        if (!user) {
-          return { data: { session: null } }
-        }
-
-        return {
-          data: {
-            session: { user: toSafePublicUser(user) },
-          },
-        }
+        return { data: { session: user ? { user: toSafePublicUser(user) } : null } }
       },
 
       onAuthStateChange(callback) {
         const user = readCurrentUser()
-        if (user) {
-          queueMicrotask(() => callback('SIGNED_IN', { user: toSafePublicUser(user) }))
-        } else {
-          queueMicrotask(() => callback('SIGNED_OUT', null))
-        }
-
+        if (user) queueMicrotask(() => callback('SIGNED_IN', { user: toSafePublicUser(user) }))
+        else queueMicrotask(() => callback('SIGNED_OUT', null))
         authListeners.add(callback)
-
-        return {
-          data: {
-            subscription: {
-              unsubscribe: () => authListeners.delete(callback),
-            },
-          },
-        }
+        return { data: { subscription: { unsubscribe: () => authListeners.delete(callback) } } }
       },
 
       async signOut() {
@@ -522,11 +506,8 @@ function createMockClient() {
 
     from(table) {
       const rows = cloneTable(table)
-      // Remember what this tab has already seen so the storage-event fallback
-      // only replays genuinely new rows (not the whole table on every write).
       knownIds.set(table, new Set(rows.map((r) => r && r.id).filter(Boolean)))
-      const query = createMockQuery(table, rows)
-      return query
+      return createMockQuery(table, rows)
     },
 
     channel() {
@@ -535,48 +516,157 @@ function createMockClient() {
           if (event === 'postgres_changes' && config?.table) {
             realtime.add(channel, config.table, config.event, (payload) => {
               if (matchesMockFilter(payload.new || {}, config.filter)) callback(payload)
-            })
+            }, config.filter)
           }
           return channel
         },
-        subscribe() {
-          return channel
-        },
-        unsubscribe() {
-          realtime.removeChannel(channel)
-          return channel
-        },
+        subscribe() { return channel },
+        unsubscribe() { realtime.removeChannel(channel); return channel },
       }
       return channel
     },
+
     removeChannel(channel) {
       realtime.removeChannel(channel)
     },
   }
 }
 
-// True when the app is running against the built-in local mock database.
-export function inMockMode() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  return !supabaseUrl || !supabaseAnonKey || supabaseUrl === 'your_supabase_project_url'
+// ───────────────────────────────────────────────────────────────────────────
+// Postgres client (auth via API + storage via API + polling realtime)
+// ───────────────────────────────────────────────────────────────────────────
+function createRemoteClient() {
+  const authListeners = new Set()
+  let initialEmitted = false
+
+  const emitAuth = (event, sessionUser) => {
+    authListeners.forEach((callback) => {
+      try {
+        if (event === 'SIGNED_IN') callback(event, { user: sessionUser })
+        else callback(event, null)
+      } catch (err) {
+        console.warn('Postgres auth listener threw:', err)
+      }
+    })
+  }
+
+  const post = async (url, body) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(body || {}),
+    })
+    const json = await res.json().catch(() => ({ error: { message: 'Server error.' } }))
+    return json
+  }
+
+  const authApi = {
+    async signUp(payload) {
+      const result = await post('/api/auth/signup', payload)
+      const user = result?.data?.session?.user
+      if (user) emitAuth('SIGNED_IN', user)
+      return result
+    },
+    async signInWithPassword(payload) {
+      const result = await post('/api/auth/signin', payload)
+      const user = result?.data?.session?.user
+      if (user) emitAuth('SIGNED_IN', user)
+      return result
+    },
+    async getSession() {
+      const res = await fetch('/api/auth/session', { credentials: 'same-origin' })
+      const body = await res.json().catch(() => ({ data: { session: null } }))
+      return body
+    },
+    onAuthStateChange(callback) {
+      if (!initialEmitted) {
+        initialEmitted = true
+        this.getSession().then(({ data }) => {
+          const session = data?.session
+          if (session?.user) callback('SIGNED_IN', { user: session.user })
+          else callback('SIGNED_OUT', null)
+        }).catch(() => callback('SIGNED_OUT', null))
+      }
+      authListeners.add(callback)
+      return { data: { subscription: { unsubscribe: () => authListeners.delete(callback) } } }
+    },
+    async signOut() {
+      await post('/api/auth/signout', {})
+      emitAuth('SIGNED_OUT', null)
+      return { error: null }
+    },
+  }
+
+  return {
+    auth: authApi,
+
+    from(table) {
+      return createRemoteQuery(table)
+    },
+
+    channel() {
+      const channel = {
+        on(event, config, callback) {
+          if (event === 'postgres_changes' && config?.table) {
+            realtime.add(channel, config.table, config.event, (payload) => {
+              if (matchesMockFilter(payload.new || {}, config.filter)) callback(payload)
+            }, config.filter)
+          }
+          return channel
+        },
+        subscribe() {
+          startRemotePoller(channel)
+          return channel
+        },
+        unsubscribe() {
+          stopRemotePoller(channel)
+          realtime.removeChannel(channel)
+          return channel
+        },
+      }
+      return channel
+    },
+
+    removeChannel(channel) {
+      stopRemotePoller(channel)
+      realtime.removeChannel(channel)
+    },
+
+    storage: {
+      from(bucket) {
+        return {
+          async upload(key, blob, { contentType = 'image/jpeg' } = {}) {
+            const data = await blobToDataUrl(blob)
+            if (!data) return { error: { message: 'Could not read image.' } }
+            const result = await post('/api/media/upload', { bucket, key, contentType, data })
+            return result
+          },
+          getPublicUrl(key) {
+            const slug = String(key).split('/').map(encodeURIComponent).join('/')
+            return { data: { publicUrl: `/api/media/${encodeURIComponent(bucket)}/${slug}` } }
+          },
+        }
+      },
+    },
+  }
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+let client = null
 
 export function getSupabase() {
   if (client) return client
 
   if (inMockMode()) {
     if (typeof window !== 'undefined') {
-      console.warn('Supabase not configured — using local mock mode for development')
+      console.warn('Database not configured — using local mock mode for development')
     }
     wireMockRealtime()
     client = createMockClient()
     return client
   }
 
-  client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  client = createRemoteClient()
   return client
 }

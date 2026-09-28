@@ -106,35 +106,35 @@ background: linear-gradient(
 ### Setup Development Environment
 ```bash
 # Navigate to frontend
-cd c:\Users\techw\Documents\Kejetia_Online\frontend
+cd frontend
 
 # Install dependencies (if not already done)
-npm install
+npm.cmd install
 
-# Run development server
-npm run dev
+# Run development server (mock mode by default — data stays in this
+# browser only, works offline, no database required)
+npm.cmd run dev
 # App will be at http://localhost:3000
-
-# In another terminal, run backend:
-cd ../backend
-npm install
-npm start
-# Backend at http://localhost:5000
 ```
 
 ### Build for Production
 ```bash
 cd frontend
-npm run build
-npm run start
+npm.cmd run build
+npm.cmd run start
 ```
 
 ### Environment Variables Required
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://[project].supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-NEXT_PUBLIC_API_URL=http://localhost:5000
+# Server-only (used by the backend API routes to reach PostgreSQL)
+DATABASE_URL=postgres://...
+
+# Client-side mode flag. Set to 'postgres' in production to make the app
+# talk to our own API routes (which use DATABASE_URL). Unset = mock mode.
+NEXT_PUBLIC_DB_MODE=postgres
 ```
+> No Supabase keys anywhere. The whole stack is one Next.js service + one
+> Postgres database (see DEPLOYMENT.md — one-click Render Blueprint).
 
 ---
 
@@ -263,11 +263,12 @@ const myInput = {
 ## 🔐 SECURITY CHECKLIST
 
 - ✅ Environment variables in `.env.local` (not committed)
-- ✅ Supabase JWT authentication
+- ✅ App-managed auth: bcrypt-hashed passwords, httpOnly `kj_session` cookie
+- ✅ API-route authorization (the replacement for Supabase RLS)
 - ✅ React auto-escapes XSS attacks
 - ✅ Password fields masked
 - ✅ No sensitive data in localStorage
-- ⚠️ **Pre-Launch**: HTTPS required, rate limiting, CORS config
+- ⚠️ **Pre-Launch**: HTTPS required (Render provides it), rate limiting, CORS config
 
 ---
 
@@ -302,8 +303,11 @@ Search: 2.71 kB
 **Example**: `<img src="/map/kejetia-map.jpg" />`
 
 ### Real-Time Messages Not Syncing
-**Cause**: Supabase real-time subscription not connected  
-**Solution**: Check Supabase connection, verify JWT token valid
+**Cause**: Database not in postgres mode (running in browser-local mock mode),
+or the `/api/events` poller is failing
+**Solution**: Set `NEXT_PUBLIC_DB_MODE=postgres` + `DATABASE_URL` on the server
+and redeploy. In mock mode two tabs of the same browser sync via
+BroadcastChannel, but different browsers never share data — that's expected.
 
 ### Mobile Layout Broken
 **Cause**: Fixed widths instead of responsive  
@@ -334,14 +338,16 @@ Kejetia_Online/
 ├── TECHNICAL_DOCUMENTATION.md      ← Start here for architecture
 ├── SELLER_TESTING_GUIDE.md         ← Use for QA testing
 ├── QUICK_REFERENCE_GUIDE.md        ← You are here
+├── render.yaml                     ← Render Blueprint (service + Postgres)
 ├── frontend/
 │   ├── app/globals.css             ← Color palette defined
+│   ├── app/                        ← Pages + backend API routes (app/api/*)
 │   ├── components/                 ← Reusable components
-│   ├── app/                        ← Page components
+│   ├── db/schema.sql               ← Postgres schema (auto-applied at boot)
 │   └── public/
 │       └── map/kejetia-map.jpg     ← Hero image
 └── backend/
-    └── server.js                   ← Express server
+    └── server.js                   ← Retired Express stub (not used)
 ```
 
 ---
@@ -384,9 +390,9 @@ Kejetia_Online/
 - Leaflet Maps: https://leafletjs.com/reference
 
 **For Back-End Team**:
-- Express.js: https://expressjs.com/
-- Supabase: https://supabase.io/docs
+- Next.js API Routes: https://nextjs.org/docs/app/building-your-application/routing/route-handlers
 - PostgreSQL: https://www.postgresql.org/docs
+- Render (hosting): https://render.com/docs
 
 **For Designers**:
 - Color Science: https://www.colorhexa.com/0d7c3e

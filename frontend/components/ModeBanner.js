@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { inMockMode } from '@/lib/supabase'
 
 // Shown whenever the app is running against the local mock database instead of
-// Supabase. The whole point is to make an unconfigured deployment impossible
-// to miss:
+// the real Postgres backend. The whole point is to make an unconfigured
+// deployment impossible to miss:
 //   • development  — small amber note (this is normal while working locally)
 //   • production   — prominent alert: stores/products/chats are per-browser and
 //                    will NOT be seen by other users.
@@ -52,14 +52,14 @@ export default function ModeBanner() {
           <>
             <strong>Database not connected.</strong> This site is running in local-only demo mode —
             stores, products and chats are stored in this browser and are not visible to other
-            users. Set <code>NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> and redeploy.
+            users. Set <code>DATABASE_URL</code> and <code>NEXT_PUBLIC_DB_MODE=postgres</code> and
+            redeploy.
           </>
         ) : (
           <>
             <strong>Local demo mode.</strong> Data stays in this browser only (mock client in{' '}
-            <code>lib/supabase.js</code>) — other users will not see it. Set the Supabase env vars
-            to go live.
+            <code>lib/supabase.js</code>) — other users will not see it. Point{' '}
+            <code>NEXT_PUBLIC_DB_MODE</code> at <code>postgres</code> to go live.
           </>
         )}
       </span>

@@ -1,10 +1,23 @@
-# Render Blueprint — one-click deploy for Kejetia Online (frontend only).
+# Render Blueprint — one-click deploy for Kejetia Online (full stack).
 # Push this repo to GitHub and create a new Blueprint on Render, or use
-# "Deploy from Blueprint" with this file. Fill in the env values below.
-# The backend is Supabase — the old Express stub has been removed.
+# "Deploy from Blueprint" with this file.
+#
+#   • Frontend + backend  — one Next.js web service (the app is full-stack;
+#     all "backend" APIs live in app/api/* and run in the same container).
+#   • Database             — managed Render Postgres, wired in automatically.
+#   • Migrations           — db/schema.sql is applied automatically on boot by
+#                            scripts/migrate.mjs (idempotent).
+#
+# NOTE: Render's free Postgres plan expires after 30 days. Upgrade the
+#       database to a paid plan for persistent "deploy always" hosting.
+
+databases:
+  - name: kejetia-db
+    plan: free
+    databaseName: kejetia
+    user: kejetia
 
 services:
-  # ── Frontend: Next.js ────────────────────────────────────────────────
   - type: web
     name: kejetia-online-web
     runtime: docker
@@ -13,9 +26,13 @@ services:
     plan: free
     healthCheckPath: /
     envVars:
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false        # set in Render dashboard after deploy
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kejetia-db
+          property: connectionString
+      - key: NEXT_PUBLIC_DB_MODE
+        value: postgres
       - key: NEXT_PUBLIC_GOOGLE_MAPS_KEY
         sync: false        # optional — the map runs on free layers without it
+      - key: PORT
+        value: 3000

@@ -1,23 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-
-export function createClient() {
-  const cookieStore = cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-}
+// Server-side data client for Route Handlers / Server Components.
+// (The old Supabase SSR client is gone; data access is centralized in
+//  lib/supabase.js — the browser and server both speak to the same API.)
+export { getSupabase } from '@/lib/supabase'
+export { inMockMode } from '@/lib/supabase'

@@ -58,21 +58,25 @@ Transform from a generic marketplace interface into a **culturally authentic, ge
 - **Environment**: .env.local configuration
 
 #### **Backend**
-- **Server**: Express.js on Node.js
-- **Port**: 5000 (local development)
-- **API**: RESTful endpoints for health check and API routes
-- **CORS**: Enabled for cross-origin requests
+- **Server**: Next.js API Routes (App Router) — the frontend and backend run as one service
+- **Hosting**: Render (web service + managed Postgres)
+- **API**: `app/api/auth/*`, `app/api/query`, `app/api/events`, `app/api/media/*`
+- **Realtime**: HTTP polling of `/api/events` (~2 s)
 
 #### **Database & Authentication**
-- **Service**: Supabase (PostgreSQL)
-- **Auth**: Email/password authentication
+- **Service**: PostgreSQL (managed — Render Postgres; schema in `frontend/db/schema.sql`)
+- **Auth**: App-managed email/password — bcrypt hashes + httpOnly `kj_session` cookie (30 days)
 - **Tables**: 
-  - `users` - User profiles with role field (buyer/seller)
+  - `users` + `sessions` - accounts and login tokens (credentials)
+  - `profiles` - public user data with role field (buyer/seller)
   - `stores` - Seller store information (name, location, hours, image, description)
   - `products` - Product listings with availability
+  - `reviews` - Ratings (store aggregates maintained by a DB trigger)
+  - `landmarks` - Map photo pins
   - `conversations` - Buyer-seller messaging threads
   - `messages` - Individual chat messages
-  - `user_locations` - Geographic data for users/stores
+  - `user_locations` - Geographic data for users/stores (live map dots)
+  - `media` - Photo bytes (BYTEA) served via `/api/media/{bucket}/{key}`
 
 #### **Maps & Geolocation**
 - **Interactive Maps**: Leaflet.js with OpenStreetMap tiles
@@ -89,12 +93,11 @@ c:\Users\techw\Documents\Kejetia_Online\
 │   │   ├── page.js                   # Homepage (6-section landing)
 │   │   ├── globals.css               # Global styles + color palette
 │   │   ├── layout.js                 # Root layout wrapper
-│   │   ├── api/                      # API routes
-│   │   │   ├── auth/                 # Authentication endpoints
-│   │   │   ├── chat/                 # Messaging API
-│   │   │   ├── messages/             # Message history API
-│   │   │   ├── products/             # Product listings API
-│   │   │   └── stores/               # Store data API
+│   │   ├── api/                      # Backend API routes (run in the same service)
+│   │   │   ├── auth/                 # signup | signin | signout | session
+│   │   │   ├── query/                # Generic data gateway (the "database API")
+│   │   │   ├── events/               # Realtime polling (replaces Supabase Realtime)
+│   │   │   └── media/                # Image upload + serving (BYTEA in Postgres)
 │   │   ├── auth/
 │   │   │   ├── login/page.js         # Seller/buyer login (redesigned)
 │   │   │   └── signup/page.js        # Role selection + signup (redesigned)
@@ -119,11 +122,17 @@ c:\Users\techw\Documents\Kejetia_Online\
 │   ├── context/
 │   │   └── auth-context.js           # Auth state management
 │   ├── lib/
-│   │   ├── supabase.js               # Supabase client config
-│   │   ├── supabase-server.js        # Server-side Supabase
+│   │   ├── supabase.js               # Data client (mock mode + Postgres-mode proxy)
+│   │   ├── supabase-server.js        # Server-side re-export (dead code shim)
+│   │   ├── db.js                     # Postgres pool (server-only)
+│   │   ├── auth-server.js            # bcrypt + session token + cookie helpers
 │   │   ├── kejetia-graph.js          # Kumasi graph data
 │   │   ├── map-geo.js                # Geographic utilities
 │   │   └── routing.js                # Route utilities
+│   ├── db/
+│   │   └── schema.sql                # Consolidated Postgres schema (auto-applied at boot)
+│   ├── scripts/
+│   │   └── migrate.mjs               # Idempotent schema runner (container boot)
 │   ├── public/
 │   │   ├── map/
 │   │   │   └── kejetia-map.jpg       # Kumasi street map (hero image)
@@ -136,9 +145,10 @@ c:\Users\techw\Documents\Kejetia_Online\
 │   └── middleware.js                 # Next.js middleware
 │
 ├── backend/
-│   ├── server.js                     # Express.js server
+│   ├── server.js                     # Retired Express stub (not used)
 │   └── package.json
 │
+├── render.yaml                       # Render Blueprint (web service + Postgres)
 └── TECHNICAL_DOCUMENTATION.md        # This file
 ```
 
@@ -150,11 +160,13 @@ User (Signup/Login)
   ↓
 [auth/signup or auth/login page]
   ↓
-Supabase Email/Password Auth
+/api/auth/signup or /api/auth/signin  (bcrypt verify + create session)
   ↓
 Role Assignment (Buyer/Seller)
   ↓
-JWT Token Stored in Context
+httpOnly kj_session cookie set (30 days)
+  ↓
+AuthContext picks up the session
   ↓
 Redirect to appropriate dashboard
   ├─ Buyer → Home page (with map)
@@ -166,7 +178,7 @@ Redirect to appropriate dashboard
 Seller Login
   ↓
 Dashboard/seller page
-  ├─ Fetch store data from Supabase
+  ├─ Fetch store data via /api/query
   ├─ Display store form (editable)
   ├─ Allow GPS location pinning
   └─ Manage products/hours
@@ -199,26 +211,25 @@ Chat with seller (WhatsApp or in-app)
 Purchase/Inquiry
 ```
 
-#### **Data Flow with Supabase**
+#### **Data Flow**
 ```
 Frontend (Next.js/React)
   ↓
-Context API (useAuth hook)
-  ├─ Manages user state
-  ├─ Stores JWT token
-  └─ Provides auth methods (signUp, login, signOut)
+lib/supabase.js (fluent from().select().eq()… surface)
+  ├─ Mock mode (default): localStorage + BroadcastChannel
+  └─ Postgres mode: every call → our own API routes
   ↓
-Supabase SDK
-  ├─ Authenticates with JWT
-  ├─ Queries PostgreSQL tables
-  └─ Real-time subscriptions (messages)
+Our API routes (app/api/*) — authorization enforced here
+  ├─ /api/query    → parameterized SQL
+  ├─ /api/events   → realtime polling (changed rows)
+  └─ /api/media/*  → image bytes
   ↓
-Database (Supabase PostgreSQL)
-  ├─ users
+Database (Render PostgreSQL — frontend/db/schema.sql)
+  ├─ users / sessions / profiles
   ├─ stores (location data)
   ├─ products
-  ├─ conversations
-  └─ messages (real-time sync)
+  ├─ conversations / messages (real-time via polling)
+  └─ media (photo BYTEA)
 ```
 
 ---
@@ -982,7 +993,7 @@ Description: Premium skincare products
 3. Modify store description
 4. Click "Save Changes"
    - Expected: Button color market-green
-   - Expected: Store data updated in Supabase
+   - Expected: Store data updated (via /api/query → Postgres)
    - Expected: Confirmation message
 
 **Styling Verification**:
@@ -1004,7 +1015,7 @@ Description: Premium skincare products
    - Expected: Latitude/longitude update automatically
    - Expected: Blue pin appears on map
 4. Click "Save Location"
-   - Expected: Coordinates saved to Supabase
+   - Expected: Coordinates saved to Postgres
 
 **Styling Verification**:
 - ✅ Current Location button: market-green
@@ -1016,7 +1027,7 @@ Description: Premium skincare products
 2. Click "Manage Products"
    - Expected: Navigate to products management page
 3. Observe:
-   - Product list from Supabase
+   - Product list from Postgres
    - Manage link styled with market-green
 
 **Styling Verification**:
@@ -1057,8 +1068,8 @@ Description: Premium skincare products
 5. Click "Send"
    - Expected: Button color market-green
    - Expected: Message appears in market-green bubble
-   - Expected: Message saved to Supabase
-   - Expected: Real-time update for buyer
+   - Expected: Message saved to Postgres
+   - Expected: Real-time update for buyer (via /api/events polling)
 
 **Styling Verification**:
 - ✅ Page background: Gradient
@@ -1077,7 +1088,7 @@ Description: Premium skincare products
 - [ ] Store card displays correctly with market-green border
 - [ ] Edit button is market-green and clickable
 - [ ] Form inputs accept modifications
-- [ ] Save button is market-green and saves to Supabase
+- [ ] Save button is market-green and saves to Postgres
 - [ ] Location GPS button works (if on HTTPS)
 - [ ] Map updates when clicking to pin location
 - [ ] Store appears on homepage map after saving
@@ -1216,10 +1227,10 @@ Description: Premium skincare products
 #### **5.5 Security Review**
 
 - [ ] Environment variables properly secured (.env.local)
-- [ ] Supabase JWT token handling
+- [ ] Data integrity and authorization enforced server-side
 - [ ] SQL injection prevention (use parameterized queries)
 - [ ] XSS prevention (React auto-escapes)
-- [ ] CSRF token implementation
+- [ ] CSRF considerations (httpOnly cookie, SameSite=Lax)
 - [ ] Rate limiting on API endpoints
 - [ ] Input validation on all forms
 - [ ] Password requirements enforced
@@ -1230,18 +1241,18 @@ Description: Premium skincare products
 
 #### **6.1 Deployment Infrastructure**
 
-**Recommended Hosting**:
-- **Frontend**: Vercel (native Next.js support, automatic deployments)
-- **Backend**: Render.com or Railway.app (Express.js)
-- **Database**: Supabase (PostgreSQL, hosted)
-- **CDN**: Vercel CDN + Cloudflare (optional)
+**Recommended Hosting** (current architecture):
+- **App (frontend + backend together)**: Render web service (Next.js full-stack — API routes in `app/api/*` run in the same container)
+- **Database**: Render Postgres (managed; `frontend/db/schema.sql` auto-applied at boot)
+- **CDN**: Render's built-in HTTPS + CDN (optional: Cloudflare)
+- **Deploy**: one-click Render Blueprint (`render.yaml`)
 
 **Deployment Steps**:
-1. Connect GitHub repo to Vercel
-2. Configure environment variables in Vercel dashboard
-3. Set production domain
-4. Configure HTTPS certificate
-5. Setup automated deployments from `main` branch
+1. Push repo to GitHub
+2. Render → New → Blueprint → pick the repo (`render.yaml` provisions service + database)
+3. Confirm env vars: `NEXT_PUBLIC_DB_MODE=postgres` + `DATABASE_URL` (auto-wired)
+4. Render issues HTTPS automatically
+5. Updates: push to `main` → auto-redeploy
 6. Monitor deployment logs and uptime
 
 #### **6.2 Launch Checklist**
@@ -1329,8 +1340,8 @@ Description: Premium skincare products
 - npm 9+ or yarn
 - Git (for version control)
 - Code editor (VS Code recommended)
-- Supabase account (https://supabase.io)
-- Environment variables configured
+- A Postgres connection string (Render DB or any provider) for real mode
+- Environment variables configured (optional — mock mode needs none)
 
 #### **Installation**
 
@@ -1339,31 +1350,25 @@ Description: Premium skincare products
 git clone <repo-url>
 cd Kejetia_Online
 
-# Install frontend dependencies
+# Install frontend dependencies (the whole stack lives here)
 cd frontend
-npm install
-
-# Install backend dependencies
-cd ../backend
-npm install
+npm.cmd install
 ```
 
 #### **Configuration**
 
-**Frontend** - `frontend/.env.local`:
+Mock mode (default, no database needed) — `frontend/.env.local` can stay as-is;
+`NEXT_PUBLIC_DB_MODE` is commented out.
+
+Real mode (production / local Postgres):
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://[project].supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-NEXT_PUBLIC_API_URL=http://localhost:5000
+DATABASE_URL=postgres://user:pass@host:5432/db
+NEXT_PUBLIC_DB_MODE=postgres
 ```
 
-**Backend** - `backend/.env`:
-```
-PORT=5000
-SUPABASE_URL=https://[project].supabase.co
-SUPABASE_KEY=[service-role-key]
-NODE_ENV=development
-```
+On Render the Blueprint injects both automatically (see `render.yaml` and
+`DEPLOYMENT.md`). There is no separate backend `.env` — the backend API
+routes are part of the frontend app.
 
 #### **Running Development Server**
 

@@ -1,53 +1,40 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Session cookie name — must match lib/auth-server.js
+const SESSION_COOKIE = 'kj_session'
 
 export async function middleware(request) {
-  if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your_supabase_project_url') {
+  // Mock mode (no real backend) has no cookies — let the client-side auth
+  // provider handle gating, exactly like the old Supabase-less behavior.
+  if (process.env.NEXT_PUBLIC_DB_MODE !== 'postgres') {
     return NextResponse.next({ request })
   }
 
-  let supabaseResponse = NextResponse.next({ request })
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          request.cookies.set(name, value)
-        )
-        supabaseResponse = NextResponse.next({ request })
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options)
-        )
-      },
-    },
-  })
-
-  const { data: { user } } = await supabase.auth.getUser()
+  const token = request.cookies.get(SESSION_COOKIE)?.value
+  const isSignedIn = Boolean(token)
 
   const protectedPaths = ['/dashboard', '/chat', '/onboarding']
-  const isProtected = protectedPaths.some(p =>
+  const isProtected = protectedPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
   )
 
-  if (isProtected && !user) {
+  if (isProtected && !isSignedIn) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && (request.nextUrl.pathname.startsWith('/auth/login') || request.nextUrl.pathname.startsWith('/auth/signup'))) {
+  if (
+    isSignedIn &&
+    (request.nextUrl.pathname.startsWith('/auth/login') ||
+      request.nextUrl.pathname.startsWith('/auth/signup'))
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
   }
 
-  return supabaseResponse
+  return NextResponse.next({ request })
 }
 
 export const config = {

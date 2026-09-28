@@ -4,6 +4,14 @@ Date: 21 Sep 2026
 Scope: two reported issue areas — **(1) data sync / cross-user visibility** and
 **(2) the map system + location tracker**.
 
+> ⚠️ **This document describes the pre-Render (Supabase-era) fixes. Nothing
+> below (the `supabase-migrations/*.sql` operator actions, the Vercel env
+> vars) applies to the current architecture.** Kejetia Online no longer uses
+> Supabase or Vercel: it runs on Render as one Next.js full-stack service with
+> a consolidated `frontend/db/schema.sql` (applied automatically at boot).
+> See `DEPLOYMENT.md` and `SYSTEM_OVERVIEW.md` for the current system. The
+> summary below is kept as a historical record of the original diagnostics.
+
 ---
 
 ## 1. "Data isn't synced — users can't see stores created by other users"
