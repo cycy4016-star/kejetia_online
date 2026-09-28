@@ -127,6 +127,12 @@ async function buildSelectSQL(table, ops, user) {
       params.push(user.id, user.id)
       where.push(`conversation_id IN (SELECT id FROM conversations WHERE buyer_id = $${params.length - 1} OR store_id IN (SELECT id FROM stores WHERE owner_id = $${params.length}))`)
     }
+  } else if (table === 'profiles') {
+    // Mirrors the Supabase RLS policy `profiles_select_auth` this app used
+    // before the migration: profiles carry phone numbers, so anonymous
+    // visitors get nothing. Signed-in users still read all profiles (chat
+    // needs the buyer's name; the live map labels dots with them).
+    if (!user) where.push('1 = 0')
   }
 
   // ORDER BY
@@ -244,7 +250,10 @@ async function authzInsert(table, payload, user) {
   throw new Error(`Insert into ${table} is not allowed.`)
 }
 
-async function ownerConstraint(table, user, params, where) {
+// NOTE: must stay synchronous. Its return value is interpolated straight into
+// the WHERE clause, so an `async` signature would splice "[object Promise]"
+// into the SQL and every UPDATE/DELETE would fail with a syntax error.
+function ownerConstraint(table, user, params, where) {
   // Returns an extra WHERE clause + declares ownership for update/delete.
   if (table === 'stores') {
     if (!user) throw new Error('You must be signed in.')
