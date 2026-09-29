@@ -10,6 +10,12 @@ export const metadata = {
   description: 'Connect with every shop in Kejetia Market, Kumasi. Search products, compare prices, find stores on the map.',
 }
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">

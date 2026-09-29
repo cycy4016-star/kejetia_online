@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabase, inMockMode } from '@/lib/supabase'
 import { useAuth } from '@/context/auth-context'
 import Header from '@/components/Header'
 import LiveMap from '@/components/maps/LiveMap'
@@ -177,11 +177,16 @@ export default function OnboardingPage() {
     setSaving(true)
     const sb = getSupabase()
     try {
-      // Real mode: upload selected photos to Storage; the row stores URLs.
-      let images = draft.images.length ? draft.images : []
-      if (draft.files && draft.files.length) {
-        const uploaded = await uploadProductImages(draft.files, existingStore.id)
-        if (uploaded.length) images = uploaded
+      // Real mode stores ONLY uploaded public URLs (never data-URL previews).
+      let images = []
+      if (inMockMode()) {
+        images = draft.images.length ? draft.images : []
+        if (draft.files && draft.files.length) {
+          const urls = await uploadProductImages(draft.files, existingStore.id)
+          if (urls.length) images = urls
+        }
+      } else if (draft.files && draft.files.length) {
+        images = await uploadProductImages(draft.files, existingStore.id)
       }
       const { error: inErr } = await sb.from('products').insert({
         store_id: existingStore.id,

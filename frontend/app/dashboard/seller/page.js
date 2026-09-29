@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSupabase } from '@/lib/supabase'
+import { getSupabase, inMockMode } from '@/lib/supabase'
 import { useAuth } from '@/context/auth-context'
 import Header from '@/components/Header'
 import LiveMap from '@/components/maps/LiveMap'
@@ -136,12 +136,19 @@ export default function SellerDashboard() {
     setSavingProduct(true)
     setError('')
     const sb = getSupabase()
-    // Real mode: upload the selected files to Storage first; the product row
-    // stores the public URLs. Mock mode: drafts are already data URLs.
-    let images = draft.images.length ? draft.images : []
-    if (draft.files && draft.files.length) {
-      const uploaded = await uploadProductImages(draft.files, store.id)
-      if (uploaded.length) images = uploaded
+    // Real mode: upload files first and store ONLY the returned public URLs.
+    // Never fall back to data-URL previews in real mode — multi-MB base64
+    // strings bloat the jsonb row and fail the insert.
+    // Mock mode: drafts are already data URLs, use them directly.
+    let images = []
+    if (inMockMode()) {
+      images = draft.images.length ? draft.images : []
+      if (draft.files && draft.files.length) {
+        const urls = await uploadProductImages(draft.files, store.id)
+        if (urls.length) images = urls
+      }
+    } else if (draft.files && draft.files.length) {
+      images = await uploadProductImages(draft.files, store.id)
     }
     const { data: row, error: err } = await sb.from('products').insert({
       store_id: store.id,
@@ -202,13 +209,13 @@ export default function SellerDashboard() {
       <Header user={user} profile={profile} onSignOut={signOut} />
 
       <div className="container ko-dash-content" style={styles.content}>
-        <div style={styles.topRow}>
+        <div style={styles.topRow} className="ko-dash-top">
           <div>
             <p style={styles.eyebrow}>Seller dashboard</p>
             <h1 style={styles.title}>Welcome back, {firstName}</h1>
             <p style={styles.subtitle}>{store.name} · {liveCount} live item{liveCount === 1 ? '' : 's'} on your storefront</p>
           </div>
-          <div style={styles.topActions}>
+          <div style={styles.topActions} className="ko-dash-actions">
             <a className="ko-btn ko-btn-ghost" style={styles.ghostBtn} href={`/store/${store.id}`}>View store page</a>
             <button className="ko-btn ko-btn-accent" style={styles.accentBtn} onClick={() => { setEditOpen(false); setProductOpenSafe(true) }}>＋ Add product</button>
           </div>
