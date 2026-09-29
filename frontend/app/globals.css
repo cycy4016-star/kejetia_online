@@ -2921,3 +2921,65 @@ body {
     height: 460px !important;
   }
 }
+
+/* ============================================ */
+/* Search + marketplace grids — phones          */
+/* ============================================ */
+
+@media (max-width: 640px) {
+  .ko-search-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .ko-search-controls {
+    width: 100%;
+    justify-content: stretch !important;
+  }
+  .ko-search-controls select {
+    flex: 1;
+    min-width: 0;
+  }
+  .ko-search-form {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .ko-search-form input {
+    flex: 1 1 100% !important;
+  }
+  .ko-search-form .ko-btn {
+    flex: 1;
+    width: 100%;
+  }
+  .ko-grid-2col,
+  .ko-grid-products {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Very small phones: marketplace cards go single-column so nothing
+   squeezes or forces horizontal scroll. */
+@media (max-width: 480px) {
+  .ko-grid-2col,
+  .ko-grid-products {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+}
+
+/* Seller dashboard top actions stack full-width on phones */
+@media (max-width: 640px) {
+  .ko-dash-top {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .ko-dash-actions {
+    width: 100%;
+  }
+  .ko-dash-actions .ko-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .ko-media-row {
+    flex-direction: column !important;
+  }
+}

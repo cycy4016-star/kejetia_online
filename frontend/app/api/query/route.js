@@ -206,6 +206,45 @@ function pluckPayload(op, cols) {
   return out
 }
 
+// JSONB columns must be sent to Postgres as JSON text. node-postgres
+// serializes a JS array as a Postgres ARRAY literal (`{a,b}`), which a
+// jsonb column rejects (`column "images" is of type jsonb but expression
+// is of type text[]`). That error was masked as generic "Query failed."
+// and broke every product insert (images is always present, even as []).
+const JSONB_COLUMNS = new Set(['images'])
+
+function toDbValue(col, val) {
+  if (JSONB_COLUMNS.has(col)) {
+    if (val == null) return JSON.stringify([])
+    if (typeof val === 'string') {
+      // Already JSON? Keep it; otherwise wrap a single URL.
+      const t = val.trim()
+      if (t === '' || t === 'null') return JSON.stringify([])
+      if (t.startsWith('[') || t.startsWith('{')) return t
+      return JSON.stringify([val])
+    }
+    try {
+      return JSON.stringify(val ?? [])
+    } catch {
+      return JSON.stringify([])
+    }
+  }
+  // Empty-string numbers from form inputs must become NULL, otherwise
+  // Postgres throws `invalid input syntax for type numeric`.
+  if ((col === 'price' || col === 'old_price' || col === 'stock') && val === '') return null
+  return val
+}
+
+function normalizeForDb(payload) {
+  const out = { ...payload }
+  for (const col of Object.keys(out)) {
+    if (JSONB_COLUMNS.has(col) || col === 'price' || col === 'old_price' || col === 'stock') {
+      out[col] = toDbValue(col, out[col])
+    }
+  }
+  return out
+}
+
 async function authzInsert(table, payload, user) {
   if (!INSERT_COLUMNS[table]) throw new Error(`Insert into ${table} is not allowed.`)
 
@@ -313,7 +352,8 @@ export async function POST(request) {
     const upsert = ops.find((o) => o.op === 'upsert')
 
     if (insert) {
-      const payload = await authzInsert(table, insert.args[0], user)
+      const raw = await authzInsert(table, insert.args[0], user)
+      const payload = normalizeForDb(raw)
       const cols = Object.keys(payload)
       if (!cols.length) return fail('Nothing to insert.')
       const values = cols.map((c) => payload[c])
@@ -330,7 +370,8 @@ export async function POST(request) {
       if (!user) return fail('You must be signed in.', 401)
       const conflictCol = upsert.args[1]?.onConflict || 'id'
       assertIdent(conflictCol)
-      const payload = await authzInsert(table, upsert.args[0], user)
+      const raw = await authzInsert(table, upsert.args[0], user)
+      const payload = normalizeForDb(raw)
       const cols = Object.keys(payload)
       const values = cols.map((c) => payload[c])
       const setSql = cols.map((c, i) => `${c} = $${i + 1}`).join(', ')
@@ -341,7 +382,8 @@ export async function POST(request) {
     }
 
     if (update) {
-      const payload = pluckPayload(update, UPDATE_COLUMNS[table] || [])
+      const rawPayload = pluckPayload(update, UPDATE_COLUMNS[table] || [])
+      const payload = normalizeForDb(rawPayload)
       const cols = Object.keys(payload).filter((c) => c !== 'id' && c !== 'created_at' && c !== 'rating' && c !== 'review_count' && c !== 'owner_id' && c !== 'store_id')
       if (!cols.length) return ok(null)
 
@@ -395,10 +437,20 @@ export async function POST(request) {
     if (terminal) return ok(data[0] || null)
     return ok(data)
   } catch (err) {
-    if (/query|column|syntax/i.test(err.message) && !err.auth) {
-      console.error('[query] SQL error:', err.message)
-      return fail('Query failed.', 400)
+    // Log the real SQL error server-side, but don't leak internals.
+    // Known constraint violations get a human message so "Add item"
+    // doesn't die with a bare "Query failed."
+    console.error(`[query] ${table} failed:`, err.message)
+    const msg = String(err.message || '')
+    if (/invalid input syntax for (type )?(numeric|integer)/i.test(msg)) {
+      return fail('Price / stock must be numbers (blank stock = plenty).', 400)
     }
-    return fail(err.message || 'Request failed.', 403)
+    if (/violates (check|not-null|foreign key|unique)/i.test(msg)) {
+      return fail('That product data was rejected by the database. Check price, stock and store.', 400)
+    }
+    if (/query|column|syntax/i.test(msg)) {
+      return fail('Query failed. Please retry — if it persists, check your product photo, price and stock.', 400)
+    }
+    return fail(msg || 'Request failed.', 403)
   }
 }
